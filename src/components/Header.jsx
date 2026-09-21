@@ -13,19 +13,23 @@ export const Header = () => {
 
   return (
     <>
-      {/* Offline connectivity banner if backend is unavailable */}
+      {/* Show connectivity banner only when truly offline or backend error — not on successful 500 */}
       {backendHealth && !backendHealth.connected && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-600 text-white text-[11px] font-semibold py-1 px-3 flex items-center justify-between shadow-md max-w-md mx-auto">
           <div className="flex items-center gap-1.5 truncate">
             <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-            <span className="truncate">Backend offline ({backendHealth.errorType || 'Connection Failed'})</span>
+            <span className="truncate">
+              {backendHealth.errorType === 'BACKEND_OFFLINE' || backendHealth.status === 'offline'
+                ? 'Cannot reach server — check your connection'
+                : `Backend error (${backendHealth.errorType || 'Unknown'})`}
+            </span>
           </div>
           <button
             onClick={() => checkBackendHealth()}
             disabled={backendHealth.isChecking}
             className="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ml-2 disabled:opacity-50"
           >
-            {backendHealth.isChecking ? 'Checking...' : 'Retry connection'}
+            {backendHealth.isChecking ? 'Checking...' : 'Retry'}
           </button>
         </div>
       )}

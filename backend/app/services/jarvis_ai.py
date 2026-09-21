@@ -9,6 +9,10 @@ from app.services.cart_engine import calculate_cart_totals
 from app.db.mongodb import get_motor_client
 from app.core.config import settings
 
+# Use gemini-3.5-flash — confirmed working model for this API key.
+# gemini-1.5-flash is NOT available for newer API keys; use gemini-3.5-flash or gemini-flash-latest.
+GEMINI_MODEL = "gemini-3.5-flash"
+
 SYSTEM_INSTRUCTION = """
 You are JARVIS, the intelligent AI assistant inside PharmaCare AI.
 You are a general-purpose conversational AI with access to the PharmaCare marketplace.
@@ -27,10 +31,12 @@ class JarvisAIService:
             try:
                 genai.configure(api_key=api_key)
                 self.genai_available = True
+                print(f"[JARVIS][Startup] Gemini configured. Model: {GEMINI_MODEL}. Key length: {len(api_key)}")
             except Exception as e:
-                print(f"[JarvisAI] Gemini configure warning: {e}")
+                print(f"[JARVIS][Startup] Gemini configure ERROR: {e}")
                 self.genai_available = False
         else:
+            print("[JARVIS][Startup] WARNING: GEMINI_API_KEY not set — Gemini calls will be skipped.")
             self.genai_available = False
 
     async def search_catalog(self, query_str: str) -> List[Dict[str, Any]]:
@@ -125,7 +131,12 @@ class JarvisAIService:
         q = text.lower().strip()
 
         # 1. Greetings & Casual
-        if q in ["hi", "hello", "hey", "hey jarvis", "good morning", "good afternoon", "good evening", "how are you", "who are you"]:
+        GREETINGS = {
+            "hi", "hello", "hey", "hey jarvis", "hello jarvis", "hi jarvis",
+            "good morning", "good afternoon", "good evening",
+            "how are you", "who are you", "jarvis", "hey there", "hello there",
+        }
+        if q in GREETINGS or q.startswith("hello") or q.startswith("hey") or q.startswith("hi "):
             return "GREETING"
         if q in ["thanks", "thank you", "thanks jarvis", "thank you jarvis", "thx"]:
             return "THANKS"
@@ -194,13 +205,17 @@ class JarvisAIService:
         if not self.genai_available:
             return None
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_INSTRUCTION)
-            res = model.generate_content(prompt)
+            import asyncio
+            model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_INSTRUCTION)
+            # google-generativeai SDK generate_content is synchronous — run in thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(None, lambda: model.generate_content(prompt))
             if res and res.text:
                 return res.text.strip()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[JARVIS][Gemini ERROR] {type(e).__name__}: {e}")
         return None
+
 
     async def generate_response(self, message: str, context: Optional[Dict[str, Any]] = None, user_id: Optional[str] = None) -> Dict[str, Any]:
         text = message.strip()

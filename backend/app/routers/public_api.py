@@ -654,30 +654,49 @@ async def update_order_status(order_id: str, req: OrderStatusUpdateRequest):
 @router.post("/api/ai/chat")
 @router.post("/ai/chat")
 async def jarvis_chat(req: AIChatRequest, authorization: Optional[str] = Header(None)):
+    import traceback
     try:
         user_id = extract_user_id(authorization)
+        print(f"[JARVIS][REQUEST] user={user_id} message={repr(req.message[:80])}")
         response_payload = await jarvis_service.generate_response(
             message=req.message,
             context=req.context,
             user_id=user_id,
         )
+        print(f"[JARVIS][OK] intent={response_payload.get('type')} products={len(response_payload.get('products', []))}")
         return {"success": True, **response_payload, "data": response_payload}
     except Exception as err:
-        print(f"[JARVIS] Chat fallback handled: {err}")
-        clean_text = req.message.strip()
-        prods = await jarvis_service.search_catalog(clean_text)
+        tb = traceback.format_exc()
+        print(f"[JARVIS][ERROR] {type(err).__name__}: {err}\n{tb}")
+        # Attempt catalog-only fallback (does NOT call Gemini — safe)
+        try:
+            prods = await jarvis_service.search_catalog(req.message.strip())
+            if prods:
+                med = prods[0]
+                msg = f"I found **{med['name']}** in the PharmaCare catalog. Price: ₹{med['price']}."
+                tts = f"I found {med['name']} in the PharmaCare catalog. Price: ₹{med['price']}."
+                return {
+                    "success": True,
+                    "type": "PRODUCT_RESULTS",
+                    "message": msg,
+                    "tts_text": tts,
+                    "products": prods,
+                    "context": req.context,
+                    "data": {"message": msg, "products": prods},
+                }
+        except Exception as fallback_err:
+            print(f"[JARVIS][FALLBACK ERROR] {fallback_err}")
+
         return {
             "success": True,
-            "type": "PRODUCT_RESULTS" if prods else "INFORMATION",
-            "message": f"I found {prods[0]['name']} in the catalog." if prods else "I'm listening. How can I assist you in PharmaCare AI?",
-            "tts_text": f"I found {prods[0]['name']}." if prods else "I'm listening. How can I assist you?",
-            "products": prods,
+            "type": "INFORMATION",
+            "message": "I'm here and listening! What can I help you with today?",
+            "tts_text": "I'm here and listening. What can I help you with?",
+            "products": [],
             "context": req.context,
-            "data": {
-                "message": f"I found {prods[0]['name']} in the catalog." if prods else "I'm listening.",
-                "products": prods,
-            }
+            "data": {"message": "I'm here and listening. What can I help you with today?", "products": []},
         }
+
 
 @router.post("/api/ai/voice")
 @router.post("/ai/voice")
