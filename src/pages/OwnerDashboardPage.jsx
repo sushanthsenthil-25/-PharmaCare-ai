@@ -1,14 +1,38 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import api from '../services/api';
 
 export function OwnerDashboardPage() {
+  const navigate = useNavigate();
   const { user, updateUser } = useApp();
+  const userRole = (user?.role || '').toUpperCase();
+  const isOwnerRole = userRole === 'OWNER' || userRole === 'PHARMACIST' || userRole === 'ADMIN';
+
   const [activeTab, setActiveTab] = useState('overview'); // overview, inventory, add, orders, pharmacy
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+
+  if (!isOwnerRole) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in">
+        <span className="material-symbols-outlined text-5xl text-rose-500 mb-3">lock</span>
+        <h2 className="text-base font-bold text-on-surface mb-1">Access Denied</h2>
+        <p className="text-xs text-on-surface-variant mb-4 max-w-xs">
+          The Owner Dashboard is restricted to verified Pharmacy Owners. Your current role is '{user?.role || 'USER'}'.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all"
+        >
+          Return to User Dashboard
+        </button>
+      </div>
+    );
+  }
 
   // Real DB Data
   const [stats, setStats] = useState({

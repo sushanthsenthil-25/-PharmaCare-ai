@@ -313,14 +313,25 @@ export const LoginPage = () => {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-outline-variant/15">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/owner/dashboard')}
-                    className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-xs shadow-sm hover:opacity-95 transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-sm">local_pharmacy</span>
-                    <span>Open Owner Dashboard</span>
-                  </button>
+                  {((user?.role || '').toUpperCase() === 'OWNER' || (user?.role || '').toUpperCase() === 'PHARMACIST' || (user?.role || '').toUpperCase() === 'ADMIN') ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/owner/dashboard')}
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-xs shadow-sm hover:opacity-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">local_pharmacy</span>
+                      <span>Open Owner Dashboard</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/')}
+                      className="flex-1 py-2 px-3 rounded-xl bg-primary text-on-primary font-bold text-xs shadow-sm hover:opacity-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">home</span>
+                      <span>Go to User Dashboard</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {

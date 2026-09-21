@@ -70,6 +70,33 @@ export const protect = async (req, res, next) => {
   }
 };
 
+// Role-Based Access Control (RBAC) middleware
+export const authorizeRoles = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    const userRole = (req.user.role || 'USER').toUpperCase();
+    const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase());
+
+    if (!normalizedAllowed.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: `Access denied. Role '${req.user.role}' is not authorized to access owner resources.`,
+        },
+      });
+    }
+
+    next();
+  };
+};
+
 // Optional auth middleware: sets req.user if valid token provided, otherwise leaves it undefined
 export const optionalAuth = async (req, res, next) => {
   let token;

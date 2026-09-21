@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middleware/auth.js';
+import { protect, authorizeRoles } from '../middleware/auth.js';
 import {
   getOwnerDashboard,
   getOwnerMedicines,
@@ -14,8 +14,9 @@ import {
 
 const router = express.Router();
 
-// Protect all owner routes
+// Protect all owner routes: Must be authenticated AND have OWNER or PHARMACIST or ADMIN role
 router.use(protect);
+router.use(authorizeRoles('OWNER', 'PHARMACIST', 'ADMIN'));
 
 router.get('/dashboard', getOwnerDashboard);
 router.get('/medicines', getOwnerMedicines);
