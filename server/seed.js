@@ -2,29 +2,9 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import dns from 'dns';
-import { execSync } from 'child_process';
-
-// Fix Windows DNS SRV resolution for MongoDB Atlas if necessary
 try {
-  if (process.platform === 'win32') {
-    const ipconfigOutput = execSync('ipconfig /all', { encoding: 'utf8', timeout: 3000 });
-    const detectedIps = Array.from(
-      ipconfigOutput.matchAll(/DNS Servers[ .:]+([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/g),
-      (m) => m[1]
-    ).filter((ip) => ip !== '127.0.0.1');
-
-    const dnsServers = [...new Set([...detectedIps, '8.8.8.8', '1.1.1.1'])];
-    if (dnsServers.length > 0) {
-      dns.setServers(dnsServers);
-    }
-  } else {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-  }
-} catch (e) {
-  try {
-    dns.setServers(['8.8.8.8', '1.1.1.1']);
-  } catch (_) {}
-}
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (_) {}
 
 import User from './models/User.js';
 import Medicine from './models/Medicine.js';

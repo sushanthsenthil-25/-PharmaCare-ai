@@ -9,8 +9,8 @@ import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
-// Prevent Mongoose from blocking for 10s if DB is not connected
-mongoose.set('bufferTimeoutMS', 1500);
+// Configure Mongoose buffer timeout for serverless environment
+mongoose.set('bufferTimeoutMS', 8000);
 
 // Route imports
 import authRoutes from './routes/authRoutes.js';
@@ -29,8 +29,17 @@ import Order from './models/Order.js';
 // Connect to MongoDB
 connectDB();
 
-
 const app = express();
+
+// Ensure MongoDB is connected for API requests (serverless resilient middleware)
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api') && mongoose.connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (_) {}
+  }
+  next();
+});
 
 // Security Middleware
 app.use(helmet());
