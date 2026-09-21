@@ -371,6 +371,69 @@ class ApiClient {
     },
   };
 
+  // 9. Owner Dashboard & Inventory Management
+  owner = {
+    getDashboard: async () => {
+      return this.get('/api/owner/dashboard');
+    },
+
+    getMedicines: async () => {
+      const res = await this.get('/api/owner/medicines');
+      return res?.medicines || res;
+    },
+
+    addMedicine: async (medicineData) => {
+      return this.post('/api/owner/medicines', medicineData);
+    },
+
+    updateMedicine: async (id, medicineData) => {
+      return this.request(`/api/owner/medicines/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(medicineData),
+      });
+    },
+
+    updateStock: async (id, stockData) => {
+      return this.patch(`/api/owner/medicines/${id}/stock`, stockData);
+    },
+
+    deleteMedicine: async (id) => {
+      return this.delete(`/api/owner/medicines/${id}`);
+    },
+
+    getOrders: async () => {
+      const res = await this.get('/api/owner/orders');
+      return res?.orders || res;
+    },
+
+    updateOrderStatus: async (orderId, status, trackingNote) => {
+      return this.patch(`/api/owner/orders/${orderId}/status`, { status, trackingNote });
+    },
+
+    updatePharmacyProfile: async (pharmacyData) => {
+      return this.patch('/api/owner/pharmacy', pharmacyData);
+    },
+  };
+
+  // 10. Nearby Pharmacies & Availability
+  pharmacies = {
+    getNearby: async ({ lat, lng, radius }) => {
+      return this.get('/api/pharmacies/nearby', { lat, lng, radius });
+    },
+
+    getById: async (id) => {
+      return this.get(`/api/pharmacies/${id}`);
+    },
+
+    getMedicines: async (id) => {
+      return this.get(`/api/pharmacies/${id}/medicines`);
+    },
+
+    getAvailability: async (medicineId, { lat, lng } = {}) => {
+      return this.get(`/api/medicines/${medicineId}/availability`, { lat, lng });
+    },
+  };
+
   // 9. Gemini AI Assistant & Voice Pipeline
   ai = {
     chat: async ({ message, history = [], context = null, conversationId }) => {

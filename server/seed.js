@@ -7,6 +7,7 @@ try {
 } catch (_) {}
 
 import User from './models/User.js';
+import Pharmacy from './models/Pharmacy.js';
 import Medicine from './models/Medicine.js';
 import HealthProduct from './models/HealthProduct.js';
 import PersonalCareProduct from './models/PersonalCareProduct.js';
@@ -663,11 +664,69 @@ export async function seedDatabase() {
       }
     }
 
-    // 2. Seed or Update Exactly the 20 Medicines with compound unique key
+    // 2. Seed Default Pharmacies for nearby map & availability
+    const ownerUser = await User.findOne({ email: 'owner@pharmacare.ai' });
+    const ownerId = ownerUser?._id || new mongoose.Types.ObjectId();
+
+    const samplePharmacies = [
+      {
+        businessName: 'PharmaCare Central Pharmacy',
+        ownerId,
+        ownerName: 'Demo Pharmacy Owner',
+        phone: '+91 98765 43210',
+        email: 'owner@pharmacare.ai',
+        address: 'Indiranagar, Bangalore 560038',
+        latitude: 12.9784,
+        longitude: 77.6408,
+        openingTime: '08:00 AM',
+        closingTime: '11:00 PM',
+        isOpen: true,
+      },
+      {
+        businessName: 'PharmaCare Mega Store',
+        ownerId,
+        ownerName: 'Demo Pharmacy Owner',
+        phone: '+91 98765 00000',
+        email: 'owner@pharmacare.ai',
+        address: 'Koramangala 5th Block, Bangalore 560034',
+        latitude: 12.9352,
+        longitude: 77.6245,
+        openingTime: '07:30 AM',
+        closingTime: '11:30 PM',
+        isOpen: true,
+      },
+      {
+        businessName: 'City Healthcare Pharmacy',
+        ownerId,
+        ownerName: 'City Admin',
+        phone: '+91 98765 11111',
+        email: 'city@pharmacare.ai',
+        address: 'MG Road, Bangalore 560001',
+        latitude: 12.9756,
+        longitude: 77.6066,
+        openingTime: '09:00 AM',
+        closingTime: '10:00 PM',
+        isOpen: true,
+      },
+    ];
+
+    const pharmacyDocs = [];
+    for (const p of samplePharmacies) {
+      const existingPharma = await Pharmacy.findOneAndUpdate(
+        { businessName: p.businessName },
+        { $set: p },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      pharmacyDocs.push(existingPharma);
+    }
+    console.log(`[Seed] Synced ${pharmacyDocs.length} default pharmacies with location coordinates.`);
+
+    // 3. Seed or Update Exactly the 20 Medicines with pharmacyId link
+    const primaryPharmacyId = pharmacyDocs[0]._id;
     for (const med of EXACT_20_MEDICINES) {
       await Medicine.findOneAndUpdate(
         { name: med.name, strength: med.strength, form: med.form },
-        { $set: med },
+        { $set: { ...med, pharmacyId: primaryPharmacyId, isActive: true } },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     }

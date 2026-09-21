@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { AIAssistantOrb } from '../components/AIAssistantOrb';
+import { NearbyPharmacyMap } from '../components/NearbyPharmacyMap';
 import api from '../services/api';
 
 const DEFAULT_MED_IMG = 'https://lh3.googleusercontent.com/aida/AEtjO1VIkX8kPJK_xW2FPVInEq_EGA82uqOOY5cS3ouVzqzwCkaEf4sRVAfyP0OXWNZmJa7vEdaXwmq9ROrI_Rq2f4uR1_Kh74uQKxV87Yd8RMwm8JRNZgegzFQW8oSrG4hZMoqcN5TR2v0L_n7BMhgoqvuXPzc8Lq3YxVVVs-Gp2YhIG4pDsk-rnnH_8b-nmNYvaH7y9ukMvuuROUxNOFFv_1HwwN4t4l9FIRiJUw-_zeAd8dHNby5bS84qHwT1';
@@ -99,6 +100,9 @@ export const HomePage = () => {
 
       {/* AI Assistant Voice Core Hero */}
       <AIAssistantOrb />
+
+      {/* Nearby Pharmacies OpenStreetMap Component */}
+      <NearbyPharmacyMap />
 
       {/* Live Order Tracker Widget */}
       <section 

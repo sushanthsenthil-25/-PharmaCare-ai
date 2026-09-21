@@ -21,6 +21,8 @@ import cartRoutes from './routes/cartRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
+import pharmacyRoutes from './routes/pharmacyRoutes.js';
+import ownerRoutes from './routes/ownerRoutes.js';
 
 // Models for dashboard / alerts compatibility
 import Medicine from './models/Medicine.js';
@@ -172,6 +174,8 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/pharmacies', pharmacyRoutes);
+app.use('/api/owner', ownerRoutes);
 
 // Dashboard Summary & Alerts Compatibility Routes
 app.get('/api/dashboard/summary', async (req, res) => {

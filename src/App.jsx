@@ -12,6 +12,7 @@ import { HealthProductsPage } from './pages/HealthProductsPage';
 import { PersonalCarePage } from './pages/PersonalCarePage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { TrackOrderPage } from './pages/TrackOrderPage';
+import { OwnerDashboardPage } from './pages/OwnerDashboardPage';
 
 export function App() {
   return (
@@ -32,6 +33,7 @@ export function App() {
                 <Route path="/personal-care" element={<PersonalCarePage />} />
                 <Route path="/product/:id" element={<ProductDetailPage />} />
                 <Route path="/track-order" element={<TrackOrderPage />} />
+                <Route path="/owner/dashboard" element={<OwnerDashboardPage />} />
               </Routes>
             </main>
 

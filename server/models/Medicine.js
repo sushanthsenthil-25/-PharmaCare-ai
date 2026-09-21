@@ -140,6 +140,16 @@ const medicineSchema = new mongoose.Schema(
       default: [],
       index: true,
     },
+    pharmacyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Pharmacy',
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -148,8 +158,8 @@ const medicineSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index to prevent duplicate records
-medicineSchema.index({ name: 1, strength: 1, form: 1 }, { unique: true });
+// Compound index to distinguish records per pharmacy
+medicineSchema.index({ name: 1, strength: 1, form: 1, pharmacyId: 1 });
 
 // Virtual field for expiry status
 medicineSchema.virtual('expiryStatus').get(function () {
