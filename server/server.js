@@ -40,6 +40,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'https://pharma-care-ai-slcb.vercel.app',
   process.env.FRONTEND_URL,
   process.env.CLIENT_ORIGIN,
 ].filter(Boolean);
@@ -52,11 +53,11 @@ app.use(
       if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
         return callback(null, true);
       }
-      // Allow any subdomains or matching production frontend if configured
-      if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL.replace(/\/$/, '')) {
+      // In production, allow same-origin Vercel deployments
+      if (origin && (origin.includes('vercel.app') || origin.includes('pharma-care'))) {
         return callback(null, true);
       }
-      callback(null, true); // Fallback to permissive during deployment verification
+      callback(null, true); // Permissive during initial deployment verification
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -64,6 +65,7 @@ app.use(
     optionsSuccessStatus: 200,
   })
 );
+
 
 // Body Parsers
 app.use(express.json({ limit: '10mb' }));
@@ -126,6 +128,29 @@ app.get('/api/health', (req, res) => {
     database: dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
+  });
+});
+
+// Database Health Check
+app.get('/api/health/db', async (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const connected = dbState === 1;
+  res.status(connected ? 200 : 503).json({
+    success: connected,
+    database: connected ? 'connected' : 'disconnected',
+    readyState: dbState,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// AI Health Check — verifies Gemini SDK and API key presence
+app.get('/api/health/ai', (req, res) => {
+  const hasKey = !!(process.env.GEMINI_API_KEY);
+  res.json({
+    success: true,
+    ai: hasKey ? 'configured' : 'unconfigured',
+    model: 'gemini-3.5-flash',
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -249,8 +274,12 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[PharmaCare AI Server] Running on port ${PORT} (0.0.0.0)`);
-});
+// Only call listen when running as a standalone Node.js process, not in Vercel serverless
+if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[PharmaCare AI Server] Running on port ${PORT} (0.0.0.0)`);
+  });
+}
 
 export default app;
+

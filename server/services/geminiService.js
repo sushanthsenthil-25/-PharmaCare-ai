@@ -469,7 +469,9 @@ export class GeminiService {
    */
   async askGemini(prompt, history = []) {
     if (!this.genAI) return null;
-    const modelNames = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+    // gemini-1.5-flash and gemini-1.5-pro are NOT available for this API key.
+    // Confirmed working model: gemini-3.5-flash
+    const modelNames = ['gemini-3.5-flash', 'gemini-flash-latest'];
 
     for (const modelName of modelNames) {
       try {
@@ -499,15 +501,17 @@ export class GeminiService {
           return null;
         })();
 
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 2500));
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 8000));
         const result = await Promise.race([fetchPromise, timeoutPromise]);
         if (result) return result;
       } catch (err) {
+        console.warn(`[Gemini] Model ${modelName} failed: ${err.message}`);
         // Try next model
       }
     }
     return null;
   }
+
 
   /**
    * Main Chat Generation Pipeline

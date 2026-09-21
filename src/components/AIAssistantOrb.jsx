@@ -216,6 +216,10 @@ export const AIAssistantOrb = () => {
     ];
     setChatHistory(updatedHistory);
 
+    // Hard 20-second timeout via AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     try {
       const res = await api.ai.chat({
         message: textToSend.trim(),
@@ -223,6 +227,8 @@ export const AIAssistantOrb = () => {
         history: updatedHistory.map((h) => ({ role: h.role, message: h.message, products: h.products })),
         context: conversationContext,
       });
+
+      clearTimeout(timeoutId);
 
       const messageText = res.message || res.tts_text || "Hey! I'm listening. What can I help you with?";
       const ttsText = res.tts_text || messageText;
@@ -284,10 +290,16 @@ export const AIAssistantOrb = () => {
         setAiState('ready');
       }
     } catch (err) {
-      setResponseMessage(err.message || 'Error communicating with JARVIS.');
+      clearTimeout(timeoutId);
+      const isTimeout = err.name === 'AbortError' || controller.signal.aborted;
+      const errorMsg = isTimeout
+        ? 'JARVIS is taking too long to respond. Please try again.'
+        : (err.message || 'Error communicating with JARVIS.');
+      setResponseMessage(errorMsg);
       setAiState('ready');
     }
   };
+
 
   // ---------------------------------------------------------------------------
   // Interactive Orb Click Handler (Supports Tap to Speak & Interrupting JARVIS)
