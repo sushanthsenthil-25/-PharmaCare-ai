@@ -120,6 +120,7 @@ async def health_check():
 # 2. Authentication & User Profile
 # ---------------------------------------------------------------------------
 @router.post("/api/auth/login")
+@router.post("/auth/login")
 async def public_login(req: LoginRequest):
     client = get_motor_client()
     db = client[settings.MONGODB_DB_NAME] if client else None
@@ -163,6 +164,7 @@ async def public_login(req: LoginRequest):
     }
 
 @router.post("/api/auth/register")
+@router.post("/auth/register")
 async def public_register(req: RegisterRequest):
     client = get_motor_client()
     db = client[settings.MONGODB_DB_NAME] if client else None
@@ -175,7 +177,7 @@ async def public_register(req: RegisterRequest):
         "phone": req.phone or "",
         "role": "customer",
         "profilePhoto": "",
-        "createdAt": datetime.datetime.utcnow().isoformat()
+        "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
 
     if db is not None:
@@ -197,6 +199,7 @@ async def public_register(req: RegisterRequest):
     }
 
 @router.get("/api/auth/me")
+@router.get("/auth/me")
 async def public_me(authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     client = get_motor_client()
@@ -232,6 +235,7 @@ async def public_me(authorization: Optional[str] = Header(None)):
     }
 
 @router.patch("/api/auth/profile")
+@router.patch("/auth/profile")
 async def update_profile(req: ProfileUpdateRequest, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
@@ -255,15 +259,14 @@ async def update_profile(req: ProfileUpdateRequest, authorization: Optional[str]
     return {"success": True, "message": "Profile updated successfully", "profile": IN_MEMORY_PROFILES[user_id]}
 
 @router.post("/api/auth/profile/photo")
+@router.post("/auth/profile/photo")
 async def upload_profile_photo(req: PhotoUploadRequest, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     
-    # Validate Photo payload
     photo_str = req.photo.strip()
     if not photo_str:
         raise HTTPException(status_code=400, detail="Profile photo data cannot be empty")
 
-    # Store photo
     if user_id not in IN_MEMORY_PROFILES:
         IN_MEMORY_PROFILES[user_id] = {}
     IN_MEMORY_PROFILES[user_id]["profilePhoto"] = photo_str
@@ -283,6 +286,7 @@ async def upload_profile_photo(req: PhotoUploadRequest, authorization: Optional[
     return {"success": True, "profilePhoto": photo_str, "message": "Profile photo updated"}
 
 @router.delete("/api/auth/profile/photo")
+@router.delete("/auth/profile/photo")
 async def delete_profile_photo(authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     if user_id in IN_MEMORY_PROFILES:
@@ -305,6 +309,7 @@ async def delete_profile_photo(authorization: Optional[str] = Header(None)):
 # 3. Medicines & Catalog
 # ---------------------------------------------------------------------------
 @router.get("/api/medicines")
+@router.get("/medicines")
 async def get_medicines(
     q: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
@@ -332,7 +337,6 @@ async def get_medicines(
         except Exception as err:
             print(f"[API] Error loading medicines from Mongo: {err}")
 
-    # Fallback to in-memory EXACT_20_MEDICINES
     items = EXACT_20_MEDICINES
     if category and category.lower() != "all":
         items = [m for m in items if m.get("category", "").lower() == category.lower()]
@@ -340,13 +344,14 @@ async def get_medicines(
     return {"success": True, "medicines": formatted, "data": formatted, "total": len(formatted)}
 
 @router.get("/api/medicines/search")
+@router.get("/medicines/search")
 async def search_medicines(q: str = Query(...), limit: Optional[int] = Query(20)):
     results = await jarvis_service.search_catalog(q)
     return {"success": True, "medicines": results[:limit], "data": results[:limit], "total": len(results[:limit])}
 
 @router.get("/api/medicines/{medicine_id}")
+@router.get("/medicines/{medicine_id}")
 async def get_medicine_by_id(medicine_id: str):
-    # Try search by ID or name
     client = get_motor_client()
     db = client[settings.MONGODB_DB_NAME] if client else None
     if db is not None:
@@ -361,7 +366,6 @@ async def get_medicine_by_id(medicine_id: str):
         if m.get("id") == medicine_id or str(m.get("_id")) == medicine_id or m["name"].lower() == medicine_id.lower():
             return {"success": True, "medicine": format_medicine_item(m), "data": format_medicine_item(m)}
 
-    # Fallback to search
     res = await jarvis_service.search_catalog(medicine_id)
     if res:
         return {"success": True, "medicine": res[0], "data": res[0]}
@@ -369,12 +373,14 @@ async def get_medicine_by_id(medicine_id: str):
     raise HTTPException(status_code=404, detail=f"Medicine {medicine_id} not found")
 
 @router.get("/api/health-products")
+@router.get("/health-products")
 async def get_health_products(category: Optional[str] = Query(None)):
     products = [m for m in EXACT_20_MEDICINES if m.get("category") in ["Supplement", "Rehydration", "Acidity"]]
     formatted = [format_medicine_item(m, idx + 1) for idx, m in enumerate(products)]
     return {"success": True, "products": formatted, "data": formatted, "total": len(formatted)}
 
 @router.get("/api/personal-care")
+@router.get("/personal-care")
 async def get_personal_care(category: Optional[str] = Query(None)):
     products = [m for m in EXACT_20_MEDICINES if m.get("category") in ["Supplement", "Allergy"]]
     formatted = [format_medicine_item(m, idx + 1) for idx, m in enumerate(products)]
@@ -384,6 +390,7 @@ async def get_personal_care(category: Optional[str] = Query(None)):
 # 4. Cart Engine
 # ---------------------------------------------------------------------------
 @router.get("/api/cart")
+@router.get("/cart")
 async def get_cart(authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     items = IN_MEMORY_CARTS.get(user_id, [])
@@ -401,12 +408,12 @@ async def get_cart(authorization: Optional[str] = Header(None)):
     }
 
 @router.post("/api/cart")
+@router.post("/cart")
 async def add_to_cart(req: CartAddRequest, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     if user_id not in IN_MEMORY_CARTS:
         IN_MEMORY_CARTS[user_id] = []
 
-    # Find product in catalog
     matched = None
     clean_pid = req.productId.lower().replace("med-", "").replace("-", " ")
     for m in EXACT_20_MEDICINES:
@@ -422,16 +429,13 @@ async def add_to_cart(req: CartAddRequest, authorization: Optional[str] = Header
             break
 
     if not matched:
-        # Search catalog with cleaned product id
         search_res = await jarvis_service.search_catalog(clean_pid)
         if search_res:
             matched = search_res[0]
 
     if not matched:
-        # Fallback to first catalog item to avoid breaking user flows
         matched = EXACT_20_MEDICINES[0]
 
-    # Update or append
     cart_items = IN_MEMORY_CARTS[user_id]
     existing = next((item for item in cart_items if item.get("productId") == matched.get("id", req.productId)), None)
     
@@ -459,11 +463,13 @@ async def add_to_cart(req: CartAddRequest, authorization: Optional[str] = Header
     return {"success": True, "message": f"Added {matched['name']} to cart", "cart": calc, "data": calc}
 
 @router.post("/api/cart/calculate")
+@router.post("/cart/calculate")
 async def calculate_cart(req: CartCalculateRequest):
     calc = calculate_cart_totals(req.items, discount_amount=req.discountAmount or 0.0)
     return {"success": True, **calc, "data": calc}
 
 @router.patch("/api/cart/{item_id}")
+@router.patch("/cart/{item_id}")
 async def update_cart_item(item_id: str, req: CartUpdateRequest, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     cart_items = IN_MEMORY_CARTS.get(user_id, [])
@@ -481,6 +487,7 @@ async def update_cart_item(item_id: str, req: CartUpdateRequest, authorization: 
     return {"success": True, "cart": calc, "data": calc}
 
 @router.delete("/api/cart/{item_id}")
+@router.delete("/cart/{item_id}")
 async def remove_cart_item(item_id: str, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     cart_items = IN_MEMORY_CARTS.get(user_id, [])
@@ -490,6 +497,7 @@ async def remove_cart_item(item_id: str, authorization: Optional[str] = Header(N
     return {"success": True, "message": "Item removed from cart", "cart": calc, "data": calc}
 
 @router.delete("/api/cart")
+@router.delete("/cart")
 async def clear_cart(authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     IN_MEMORY_CARTS[user_id] = []
@@ -500,6 +508,7 @@ async def clear_cart(authorization: Optional[str] = Header(None)):
 # 5. Orders & Live Tracking
 # ---------------------------------------------------------------------------
 @router.post("/api/orders")
+@router.post("/orders")
 async def create_order(req: OrderCreateRequest, authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     if not req.items:
@@ -507,7 +516,7 @@ async def create_order(req: OrderCreateRequest, authorization: Optional[str] = H
 
     calc = calculate_cart_totals(req.items)
     order_id = f"ORD-{uuid.uuid4().hex[:6].upper()}"
-    now_iso = datetime.datetime.utcnow().isoformat()
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     order_doc = {
         "orderId": order_id,
@@ -535,7 +544,6 @@ async def create_order(req: OrderCreateRequest, authorization: Optional[str] = H
     }
 
     IN_MEMORY_ORDERS[order_id] = order_doc
-    # Clear user cart after checkout
     IN_MEMORY_CARTS[user_id] = []
 
     client = get_motor_client()
@@ -549,6 +557,7 @@ async def create_order(req: OrderCreateRequest, authorization: Optional[str] = H
     return {"success": True, "order": order_doc, "data": order_doc, "orderId": order_id}
 
 @router.get("/api/orders")
+@router.get("/orders")
 async def get_orders(authorization: Optional[str] = Header(None)):
     user_id = extract_user_id(authorization)
     user_orders = [o for o in IN_MEMORY_ORDERS.values() if o.get("userId") == user_id]
@@ -566,6 +575,7 @@ async def get_orders(authorization: Optional[str] = Header(None)):
     return {"success": True, "orders": user_orders, "data": user_orders, "total": len(user_orders)}
 
 @router.get("/api/orders/{order_id}")
+@router.get("/orders/{order_id}")
 async def get_order_by_id(order_id: str):
     if order_id in IN_MEMORY_ORDERS:
         return {"success": True, "order": IN_MEMORY_ORDERS[order_id], "data": IN_MEMORY_ORDERS[order_id]}
@@ -580,12 +590,11 @@ async def get_order_by_id(order_id: str):
         except Exception:
             pass
 
-    # Provide demo order fallback for testing
     demo_order = {
         "orderId": order_id,
         "id": order_id,
         "status": "OUT_FOR_DELIVERY",
-        "placedAt": datetime.datetime.utcnow().isoformat(),
+        "placedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "estimatedDeliveryAt": "Today, 6:30 PM – 7:15 PM",
         "total": 50.0,
         "items": [
@@ -604,6 +613,7 @@ async def get_order_by_id(order_id: str):
     return {"success": True, "order": demo_order, "data": demo_order}
 
 @router.get("/api/orders/{order_id}/tracking")
+@router.get("/orders/{order_id}/tracking")
 async def get_order_tracking(order_id: str):
     order = IN_MEMORY_ORDERS.get(order_id)
     if not order:
@@ -631,6 +641,7 @@ async def get_order_tracking(order_id: str):
     }
 
 @router.patch("/api/orders/{order_id}/status")
+@router.patch("/orders/{order_id}/status")
 async def update_order_status(order_id: str, req: OrderStatusUpdateRequest):
     if order_id in IN_MEMORY_ORDERS:
         IN_MEMORY_ORDERS[order_id]["status"] = req.status
@@ -641,6 +652,7 @@ async def update_order_status(order_id: str, req: OrderStatusUpdateRequest):
 # 6. JARVIS AI & Multilingual Voice Pipeline
 # ---------------------------------------------------------------------------
 @router.post("/api/ai/chat")
+@router.post("/ai/chat")
 async def jarvis_chat(req: AIChatRequest, authorization: Optional[str] = Header(None)):
     try:
         user_id = extract_user_id(authorization)
@@ -668,6 +680,7 @@ async def jarvis_chat(req: AIChatRequest, authorization: Optional[str] = Header(
         }
 
 @router.post("/api/ai/voice")
+@router.post("/ai/voice")
 async def jarvis_voice(req: AIVoiceRequest, authorization: Optional[str] = Header(None)):
     try:
         user_id = extract_user_id(authorization)
@@ -697,6 +710,7 @@ async def jarvis_voice(req: AIVoiceRequest, authorization: Optional[str] = Heade
 # 7. Dashboard & Safety Alerts
 # ---------------------------------------------------------------------------
 @router.get("/api/dashboard/summary")
+@router.get("/dashboard/summary")
 async def get_dashboard_summary():
     return {
         "success": True,
@@ -709,6 +723,7 @@ async def get_dashboard_summary():
     }
 
 @router.get("/api/alerts")
+@router.get("/alerts")
 async def get_alerts():
     return {
         "success": True,
@@ -719,7 +734,7 @@ async def get_alerts():
                 "severity": "MEDIUM",
                 "title": "Stock Alert: Dextromethorphan Syrup",
                 "message": "Current inventory is at 20 units. Re-order recommended.",
-                "createdAt": datetime.datetime.utcnow().isoformat(),
+                "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
         ]
     }
