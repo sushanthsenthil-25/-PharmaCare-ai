@@ -63,6 +63,11 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    discount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     total: {
       type: Number,
       required: true,
@@ -72,23 +77,48 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Shipping address is required'],
     },
+    placedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    estimatedDeliveryAt: {
+      type: Date,
+    },
+    estimatedDeliveryText: {
+      type: String,
+      default: 'Today, 30–45 mins',
+    },
+    currentLocation: {
+      type: String,
+      default: 'Live driver location will appear when available.',
+    },
     status: {
       type: String,
       enum: [
         'PLACED',
         'CONFIRMED',
+        'PREPARING',
         'PACKED',
         'SHIPPED',
         'OUT_FOR_DELIVERY',
         'DELIVERED',
         'CANCELLED',
       ],
-      default: 'OUT_FOR_DELIVERY',
+      default: 'CONFIRMED',
       index: true,
     },
+    trackingEvents: [
+      {
+        status: { type: String, required: true },
+        title: { type: String, required: true },
+        description: { type: String, default: '' },
+        timestamp: { type: Date, default: Date.now },
+        completed: { type: Boolean, default: false },
+      },
+    ],
     etaMinutes: {
       type: Number,
-      default: 18,
+      default: 30,
     },
     riderName: {
       type: String,

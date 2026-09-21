@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
+import { CartModal } from './components/CartModal';
 
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
@@ -35,6 +36,7 @@ export function App() {
             </main>
 
             <BottomNav />
+            <CartModal />
           </div>
         </div>
       </Router>

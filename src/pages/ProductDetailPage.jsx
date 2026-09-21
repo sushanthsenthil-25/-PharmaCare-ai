@@ -8,7 +8,7 @@ const DEFAULT_MED_IMG = "data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://w
 export const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useApp();
+  const { addToCart, openCart } = useApp();
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('composition');
   const [product, setProduct] = useState(null);
@@ -71,7 +71,7 @@ export const ProductDetailPage = () => {
     if (!product) return;
     const res = await addToCart(product, quantity);
     if (res?.success) {
-      navigate('/track-order');
+      openCart();
     }
   };
 

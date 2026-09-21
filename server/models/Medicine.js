@@ -15,6 +15,12 @@ const medicineSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    activeIngredient: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+    },
     scientificName: {
       type: String,
       default: '',
@@ -23,49 +29,34 @@ const medicineSchema = new mongoose.Schema(
     },
     brand: {
       type: String,
-      required: [true, 'Brand/Manufacturer is required'],
+      default: 'PharmaCare Labs',
       trim: true,
       index: true,
     },
+    manufacturer: {
+      type: String,
+      default: 'PharmaCare Laboratories',
+      trim: true,
+    },
     composition: {
       type: String,
-      required: [true, 'Composition details required'],
+      default: '',
       trim: true,
-      index: true,
     },
     strength: {
       type: String,
       default: '',
-    },
-    description: {
-      type: String,
-      default: '',
-    },
-    uses: {
-      type: [String],
-      default: [],
-    },
-    precautions: {
-      type: [String],
-      default: [],
-    },
-    storageInstructions: {
-      type: String,
-      default: 'Store in a cool, dry place away from direct sunlight.',
-    },
-    manufacturingDate: {
-      type: Date,
-      required: [true, 'Manufacturing date is required'],
-    },
-    expiryDate: {
-      type: Date,
-      required: [true, 'Expiry date is required'],
-      index: true,
-    },
-    batchNumber: {
-      type: String,
-      required: [true, 'Batch number is required'],
       trim: true,
+    },
+    form: {
+      type: String,
+      default: 'Tablet',
+      trim: true,
+    },
+    quantity: {
+      type: Number,
+      default: 100,
+      min: 0,
     },
     price: {
       type: Number,
@@ -83,23 +74,71 @@ const medicineSchema = new mongoose.Schema(
     stock: {
       type: Number,
       required: true,
-      default: 0,
+      default: 100,
       min: 0,
     },
     category: {
       type: String,
       required: true,
-      enum: ['Prescription (Rx)', 'Over-The-Counter (OTC)', 'Chronic Care', 'Fever & Pain', 'Antibiotics', 'Cardiac', 'Gastro', 'Respiratory', 'All'],
-      default: 'Over-The-Counter (OTC)',
+      trim: true,
       index: true,
+    },
+    batchNumber: {
+      type: String,
+      required: [true, 'Batch number is required'],
+      trim: true,
+    },
+    manufacturingDate: {
+      type: Date,
+      required: [true, 'Manufacturing date is required'],
+    },
+    expiryDate: {
+      type: Date,
+      required: [true, 'Expiry date is required'],
+      index: true,
+    },
+    image: {
+      type: String,
+      default: '',
+    },
+    images: {
+      type: [String],
+      default: [],
+    },
+    description: {
+      type: String,
+      default: '',
+    },
+    status: {
+      type: String,
+      default: 'In Stock',
+      trim: true,
+    },
+    uses: {
+      type: [String],
+      default: [],
+    },
+    precautions: {
+      type: [String],
+      default: [],
+    },
+    storageInstructions: {
+      type: String,
+      default: 'Store in a cool, dry place away from direct sunlight.',
     },
     rxRequired: {
       type: Boolean,
       default: false,
     },
-    image: {
-      type: String,
-      default: 'https://lh3.googleusercontent.com/aida/AEtjO1VIkX8kPJK_xW2FPVInEq_EGA82uqOOY5cS3ouVzqzwCkaEf4sRVAfyP0OXWNZmJa7vEdaXwmq9ROrI_Rq2f4uR1_Kh74uQKxV87Yd8RMwm8JRNZgegzFQW8oSrG4hZMoqcN5TR2v0L_n7BMhgoqvuXPzc8Lq3YxVVVs-Gp2YhIG4pDsk-rnnH_8b-nmNYvaH7y9ukMvuuROUxNOFFv_1HwwN4t4l9FIRiJUw-_zeAd8dHNby5bS84qHwT1',
+    aliases: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    searchKeywords: {
+      type: [String],
+      default: [],
+      index: true,
     },
   },
   {
@@ -108,6 +147,9 @@ const medicineSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 );
+
+// Compound unique index to prevent duplicate records
+medicineSchema.index({ name: 1, strength: 1, form: 1 }, { unique: true });
 
 // Virtual field for expiry status
 medicineSchema.virtual('expiryStatus').get(function () {
@@ -118,10 +160,12 @@ medicineSchema.virtual('expiryStatus').get(function () {
 medicineSchema.index({
   name: 'text',
   genericName: 'text',
+  activeIngredient: 'text',
   scientificName: 'text',
   brand: 'text',
-  composition: 'text',
   category: 'text',
+  composition: 'text',
+  description: 'text',
 });
 
 export const Medicine = mongoose.model('Medicine', medicineSchema);

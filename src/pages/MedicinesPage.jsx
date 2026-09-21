@@ -74,7 +74,21 @@ export const MedicinesPage = () => {
     };
   }, [activeCategory, searchFilter]);
 
-  const categories = ['All', 'Prescription (Rx)', 'Over-The-Counter (OTC)', 'Chronic Care'];
+  const categories = [
+    'All',
+    'Pain & Fever',
+    'Allergy',
+    'Gastric/Acidity',
+    'Antibiotic',
+    'Pain & Inflammation',
+    'Diabetes',
+    'Blood Pressure',
+    'Cholesterol',
+    'Supplement',
+    'Anti-nausea',
+    'Cough',
+    'Rehydration',
+  ];
 
   const getExpiryBadge = (item) => {
     if (item.expiryStatus === 'EXPIRED' || item.isExpired) {

@@ -7,7 +7,7 @@ import Message from '../models/Message.js';
 // @access  Public (Optional User)
 export const handleAIChat = async (req, res, next) => {
   try {
-    const { message, conversationId, history } = req.body;
+    const { message, conversationId, history, context } = req.body;
     const userId = req.user ? req.user._id : null;
 
     if (!message || !message.trim()) {
@@ -39,6 +39,7 @@ export const handleAIChat = async (req, res, next) => {
     const aiResponse = await geminiService.generateChatResponse({
       message: message.trim(),
       history,
+      context,
       userId,
     });
 
@@ -60,9 +61,12 @@ export const handleAIChat = async (req, res, next) => {
       conversationId: convId,
       type: aiResponse.type,
       message: aiResponse.message,
-      tts_text: aiResponse.message, // For voice synthesis
+      tts_text: aiResponse.tts_text || aiResponse.message,
+      action: aiResponse.action || null,
+      addedProduct: aiResponse.addedProduct || null,
       products: aiResponse.products || [],
       sources: aiResponse.sources || [],
+      context: aiResponse.context || null,
     });
   } catch (error) {
     next(error);
@@ -74,7 +78,7 @@ export const handleAIChat = async (req, res, next) => {
 // @access  Public
 export const handleAIVoice = async (req, res, next) => {
   try {
-    const { command_text, history, conversationId, language_hint = 'auto' } = req.body;
+    const { command_text, history, context, conversationId, language_hint = 'auto' } = req.body;
     const userId = req.user ? req.user._id : null;
 
     if (!command_text || !command_text.trim()) {
@@ -87,6 +91,7 @@ export const handleAIVoice = async (req, res, next) => {
     const aiResponse = await geminiService.generateChatResponse({
       message: command_text.trim(),
       history,
+      context,
       userId,
     });
 
@@ -94,12 +99,13 @@ export const handleAIVoice = async (req, res, next) => {
       success: true,
       conversationId: conversationId || `conv_${Date.now()}`,
       type: aiResponse.type,
-      tts_text: aiResponse.message,
+      tts_text: aiResponse.tts_text || aiResponse.message,
       message: aiResponse.message,
       action: aiResponse.action || null,
       addedProduct: aiResponse.addedProduct || null,
       products: aiResponse.products || [],
       sources: aiResponse.sources || [],
+      context: aiResponse.context || null,
       detected_language: language_hint === 'auto' ? 'English / Indian Multilingual' : language_hint,
       requires_confirmation: false,
     });

@@ -1,10 +1,24 @@
 /**
  * Centralized API Client for PharmaCare AI
  * Connects the React/Vite Stitch frontend to the Node.js / Express / MongoDB backend.
- * Handles JWT authentication, product catalog, cart, orders, and Gemini AI interactions.
+ * Handles JWT authentication, profile photos, product catalog, cart, orders, and Gemini AI interactions.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// Production & Development API URL resolver
+const getInitialApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim().replace(/\/$/, '');
+  }
+  // If in browser production environment and no env var provided, use same-origin relative /api
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return '/api';
+  }
+  // Local development fallback
+  return 'http://localhost:5000';
+};
+
+const API_BASE_URL = getInitialApiUrl();
 
 class ApiClient {
   constructor() {
@@ -12,7 +26,7 @@ class ApiClient {
   }
 
   // ---------------------------------------------------------------------------
-  // Token Storage Helpers
+  // Token & User Storage Helpers
   // ---------------------------------------------------------------------------
   getAccessToken() {
     return localStorage.getItem('pharmacare_access_token');
@@ -51,10 +65,33 @@ class ApiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // Clean URL Builder that prevents duplicate /api/api
+  // ---------------------------------------------------------------------------
+  buildUrl(endpoint) {
+    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+      return endpoint;
+    }
+
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+    // If baseUrl already ends with /api and endpoint starts with /api/, avoid duplicate
+    if (this.baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+      return `${this.baseUrl}${cleanEndpoint.slice(4)}`;
+    }
+
+    // If baseUrl is empty or just '/api', handle cleanly
+    if (this.baseUrl === '/api') {
+      return cleanEndpoint.startsWith('/api') ? cleanEndpoint : `/api${cleanEndpoint}`;
+    }
+
+    return `${this.baseUrl}${cleanEndpoint}`;
+  }
+
+  // ---------------------------------------------------------------------------
   // Core HTTP Request Handler with Automatic Refresh & Error Handling
   // ---------------------------------------------------------------------------
   async request(endpoint, options = {}) {
-    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+    const url = this.buildUrl(endpoint);
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -79,6 +116,7 @@ class ApiClient {
 
       if (!response.ok) {
         const errorMessage =
+          data?.error?.message ||
           data?.message ||
           data?.detail?.[0]?.msg ||
           data?.detail ||
@@ -86,15 +124,16 @@ class ApiClient {
         const error = new Error(errorMessage);
         error.status = response.status;
         error.data = data;
-        error.code = data?.code;
+        error.code = data?.error?.code || data?.code || (response.status === 401 ? 'AUTH_ERROR' : 'API_ERROR');
         throw error;
       }
 
       return data;
     } catch (err) {
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        const netErr = new Error('Network error: Unable to connect to PharmaCare backend server.');
+        const netErr = new Error('Unable to connect to PharmaCare AI backend. Please verify your internet connection or backend server.');
         netErr.status = 0;
+        netErr.code = 'BACKEND_OFFLINE';
         throw netErr;
       }
       throw err;
@@ -134,7 +173,31 @@ class ApiClient {
   // Domain API Modules
   // ---------------------------------------------------------------------------
 
-  // 1. Authentication
+  // 1. Health Check Module
+  health = {
+    check: async () => {
+      try {
+        const res = await this.get('/api/health');
+        return {
+          connected: true,
+          status: 'online',
+          message: res?.message || 'PharmaCare AI backend is running',
+          environment: res?.environment || 'production',
+          database: res?.database || 'connected',
+          timestamp: res?.timestamp,
+        };
+      } catch (err) {
+        return {
+          connected: false,
+          status: 'offline',
+          errorType: err.code || 'BACKEND_OFFLINE',
+          message: err.message || 'Backend unavailable',
+        };
+      }
+    },
+  };
+
+  // 2. Authentication & User Profile
   auth = {
     login: async ({ email, password }) => {
       const res = await this.post('/api/auth/login', { email, password });
@@ -156,12 +219,30 @@ class ApiClient {
       return res?.user || res;
     },
 
+    updateProfile: async (profileData) => {
+      const res = await this.patch('/api/auth/profile', profileData);
+      if (res?.user) this.setUser(res.user);
+      return res?.user || res;
+    },
+
+    uploadPhoto: async (photoData) => {
+      const res = await this.post('/api/auth/profile/photo', { photo: photoData });
+      if (res?.user) this.setUser(res.user);
+      return res?.user || res;
+    },
+
+    removePhoto: async () => {
+      const res = await this.delete('/api/auth/profile/photo');
+      if (res?.user) this.setUser(res.user);
+      return res?.user || res;
+    },
+
     logout: async () => {
       this.clearTokens();
     },
   };
 
-  // 2. Medicines Catalog
+  // 3. Medicines Catalog
   medicines = {
     list: async (params = {}) => {
       const res = await this.get('/api/medicines', params);
@@ -173,7 +254,7 @@ class ApiClient {
       return res?.medicine || res;
     },
 
-    search: async (q, limit = 10) => {
+    search: async (q, limit = 20) => {
       const res = await this.get('/api/medicines/search', { q, limit });
       return res?.medicines || res?.items || res;
     },
@@ -201,7 +282,7 @@ class ApiClient {
     },
   };
 
-  // 3. Health Products
+  // 4. Health Products
   healthProducts = {
     list: async (params = {}) => {
       const res = await this.get('/api/health-products', params);
@@ -214,7 +295,7 @@ class ApiClient {
     },
   };
 
-  // 4. Personal Care Products
+  // 5. Personal Care Products
   personalCare = {
     list: async (params = {}) => {
       const res = await this.get('/api/personal-care', params);
@@ -227,10 +308,14 @@ class ApiClient {
     },
   };
 
-  // 5. Cart Management
+  // 6. Cart Management
   cart = {
     get: async () => {
       return this.get('/api/cart');
+    },
+
+    calculate: async (items = [], discountAmount = 0) => {
+      return this.post('/api/cart/calculate', { items, discountAmount });
     },
 
     add: async ({ productId, productType = 'Medicine', qty = 1 }) => {
@@ -250,7 +335,7 @@ class ApiClient {
     },
   };
 
-  // 6. Orders & Live Tracking
+  // 7. Orders & Live Tracking
   orders = {
     create: async (orderData) => {
       return this.post('/api/orders', orderData);
@@ -266,12 +351,16 @@ class ApiClient {
       return res?.order || res;
     },
 
+    getTracking: async (orderId) => {
+      return this.get(`/api/orders/${orderId}/tracking`);
+    },
+
     updateStatus: async (orderId, statusData) => {
       return this.patch(`/api/orders/${orderId}/status`, statusData);
     },
   };
 
-  // 7. Live Alerts & Dashboard
+  // 8. Live Alerts & Dashboard
   alerts = {
     list: async (params = {}) => {
       const res = await this.get('/api/alerts', params);
@@ -288,14 +377,14 @@ class ApiClient {
     },
   };
 
-  // 8. Gemini AI Assistant & Web Grounding
+  // 9. Gemini AI Assistant & Voice Pipeline
   ai = {
-    chat: async ({ message, history = [], conversationId }) => {
-      return this.post('/api/ai/chat', { message, history, conversationId });
+    chat: async ({ message, history = [], context = null, conversationId }) => {
+      return this.post('/api/ai/chat', { message, history, context, conversationId });
     },
 
-    voice: async ({ command_text, language_hint = 'auto' }) => {
-      return this.post('/api/ai/voice', { command_text, language_hint });
+    voice: async ({ command_text, history = [], context = null, conversationId, language_hint = 'auto' }) => {
+      return this.post('/api/ai/voice', { command_text, history, context, conversationId, language_hint });
     },
 
     confirmVoice: async ({ command_id, confirmed }) => {

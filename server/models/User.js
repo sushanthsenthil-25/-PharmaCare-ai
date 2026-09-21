@@ -43,9 +43,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w',
     },
+    profilePhoto: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform: (doc, ret) => {
+        ret.id = ret._id;
+        if (!ret.profilePhoto && ret.avatar) {
+          ret.profilePhoto = ret.avatar;
+        }
+        delete ret.password;
+        return ret;
+      },
+    },
+    toObject: { virtuals: true },
   }
 );
 

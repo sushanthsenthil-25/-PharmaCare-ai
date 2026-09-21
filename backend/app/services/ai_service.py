@@ -199,7 +199,7 @@ async def parse_and_process_ai_query(
 
     return AIChatResponse(
         message=(
-            f"Hello! I am your PharmaCare Clinical AI Assistant. You can ask me:\n"
+            f"Hello! I am JARVIS, your intelligent AI assistant inside PharmaCare AI. You can ask me:\n"
             f"• 'How many Paracetamol are available?' (Check inventory)\n"
             f"• 'Show low stock' or 'Out of stock'\n"
             f"• 'Today's sales?'\n"

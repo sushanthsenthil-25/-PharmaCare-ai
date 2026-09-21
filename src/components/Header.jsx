@@ -5,14 +5,32 @@ import { useApp } from '../context/AppContext';
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, user, location: userLoc, alerts, unreadAlertsCount, markAlertRead, setAiState } = useApp();
+  const { cart, user, location: userLoc, alerts, unreadAlertsCount, markAlertRead, setAiState, backendHealth, checkBackendHealth, openCart } = useApp();
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.qty, 0);
+  const displayAvatar = user?.profilePhoto || user?.avatar || 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 pt-safe bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] max-w-md mx-auto">
+      {/* Offline connectivity banner if backend is unavailable */}
+      {backendHealth && !backendHealth.connected && (
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-600 text-white text-[11px] font-semibold py-1 px-3 flex items-center justify-between shadow-md max-w-md mx-auto">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+            <span className="truncate">Backend offline ({backendHealth.errorType || 'Connection Failed'})</span>
+          </div>
+          <button
+            onClick={() => checkBackendHealth()}
+            disabled={backendHealth.isChecking}
+            className="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ml-2 disabled:opacity-50"
+          >
+            {backendHealth.isChecking ? 'Checking...' : 'Retry connection'}
+          </button>
+        </div>
+      )}
+
+      <header className={`fixed top-0 left-0 right-0 z-50 pt-safe bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] max-w-md mx-auto ${backendHealth && !backendHealth.connected ? 'mt-6' : ''}`}>
         <div className="h-28 px-margin flex flex-col justify-between py-space-sm">
           {/* Top bar: Brand & Action Icons */}
           <div className="flex items-center justify-between gap-space-sm">
@@ -46,7 +64,7 @@ export const Header = () => {
               {/* Shopping Cart Button */}
               <button 
                 aria-label="Shopping Cart" 
-                onClick={() => navigate('/medicines')}
+                onClick={() => openCart()}
                 className="w-10 h-10 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container transition-colors relative"
               >
                 <span className="material-symbols-outlined text-[22px]">shopping_bag</span>
@@ -61,11 +79,15 @@ export const Header = () => {
               <div 
                 onClick={() => navigate('/login')}
                 className="pl-space-xs cursor-pointer"
+                title="View Profile & Account"
               >
                 <img 
-                  alt="Profile" 
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20" 
-                  src={user.avatar} 
+                  alt={user?.name || "Profile"} 
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20 bg-surface-container-low" 
+                  src={displayAvatar}
+                  onError={(e) => {
+                    e.target.src = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
+                  }}
                 />
               </div>
             </div>

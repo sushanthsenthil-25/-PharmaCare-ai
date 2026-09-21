@@ -42,7 +42,7 @@ async function run10TestCases() {
 
   const noDisclaimerT1 = !t1.message.toLowerCase().includes('clinical guidance for hi') &&
     !t1.message.toLowerCase().includes('consult a licensed physician') &&
-    (t1.message.includes('PharmaCare') || t1.message.includes('help'));
+    (t1.message.includes('JARVIS') || t1.message.includes('help'));
   assert(noDisclaimerT1, 'TEST 1: "Hi"', `AI Output: "${t1.message}"`);
   conversationHistory.push({ role: 'user', message: 'Hi' }, { role: 'assistant', message: t1.message });
 

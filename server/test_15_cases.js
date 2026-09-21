@@ -79,7 +79,7 @@ async function run15Tests() {
     if (d.message.toLowerCase().includes('clinical guidance') || d.message.toLowerCase().includes('disclaimer')) {
       return 'Incorrectly returned clinical disclaimer';
     }
-    if (!d.message.toLowerCase().includes('pharmacare') && !d.message.toLowerCase().includes('help')) {
+    if (!d.message.toLowerCase().includes('jarvis') && !d.message.toLowerCase().includes('help')) {
       return 'Missing natural greeting';
     }
     return null;

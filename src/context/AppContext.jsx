@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
+const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
+
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
@@ -12,12 +14,15 @@ export const AppProvider = ({ children }) => {
   const hasToken = !!api.getAccessToken();
 
   const [user, setUser] = useState({
+    id: storedUser?.id || storedUser?._id || 'usr_default',
+    _id: storedUser?._id || storedUser?.id || 'usr_default',
     name: storedUser?.name || storedUser?.full_name || 'Rahul',
     email: storedUser?.email || 'owner@pharmacare.ai',
     role: storedUser?.role || 'OWNER',
     businessName: storedUser?.businessName || storedUser?.business_name || 'PharmaCare Central',
     isLoggedIn: hasToken,
-    avatar: storedUser?.avatar || 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w',
+    avatar: storedUser?.profilePhoto || storedUser?.avatar || DEFAULT_AVATAR,
+    profilePhoto: storedUser?.profilePhoto || storedUser?.avatar || DEFAULT_AVATAR,
   });
 
   const [cart, setCart] = useState([
@@ -25,18 +30,30 @@ export const AppProvider = ({ children }) => {
     { id: 'h1', name: 'Optima Multivitamin AI Gold', price: 399, qty: 1, type: 'OTC' }
   ]);
 
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartSummary, setCartSummary] = useState(null);
+
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
+
   const [activeOrder, setActiveOrder] = useState({
     id: 'ORD-8942',
     orderNumber: 'ORD-8942',
-    status: 'OUT_FOR_DELIVERY',
-    etaMinutes: 18,
+    status: 'CONFIRMED',
+    estimatedDeliveryText: 'Today, 30–45 mins',
+    currentLocation: 'Live driver location will appear when available.',
+    etaMinutes: 30,
     riderName: 'Vikram Singh',
     riderPhone: '+91 98765 43210',
     totalAmount: 544,
+    subtotal: 544,
+    deliveryFee: 0,
+    discount: 0,
     items: [
       { name: 'Amoxicillin Trihydrate 500mg', qty: 1, price: 145 },
       { name: 'Optima Multivitamin AI Gold', qty: 1, price: 399 }
-    ]
+    ],
+    trackingEvents: []
   });
 
   const [alerts, setAlerts] = useState([]);
@@ -44,6 +61,68 @@ export const AppProvider = ({ children }) => {
   const [dashboardSummary, setDashboardSummary] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [backendHealth, setBackendHealth] = useState({
+    connected: true,
+    status: 'checking',
+    message: 'Checking connectivity...',
+    environment: 'production',
+    errorType: null,
+    isChecking: true,
+  });
+
+  // ---------------------------------------------------------------------------
+  // Check Backend Health & Status
+  // ---------------------------------------------------------------------------
+  const checkBackendHealth = useCallback(async () => {
+    setBackendHealth((prev) => ({ ...prev, isChecking: true }));
+    try {
+      const res = await api.health.check();
+      setBackendHealth({
+        connected: res.connected,
+        status: res.status,
+        message: res.message,
+        environment: res.environment || 'production',
+        errorType: res.errorType || null,
+        isChecking: false,
+      });
+      return res;
+    } catch (err) {
+      setBackendHealth({
+        connected: false,
+        status: 'offline',
+        message: err.message || 'Backend unavailable',
+        environment: 'production',
+        errorType: 'BACKEND_OFFLINE',
+        isChecking: false,
+      });
+      return { connected: false };
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Sync Cart Calculations with Backend Authoritative Calculation Engine
+  // ---------------------------------------------------------------------------
+  const syncCartCalculations = useCallback(async (currentItems) => {
+    try {
+      const calc = await api.cart.calculate(currentItems);
+      if (calc) {
+        setCartSummary(calc);
+      }
+    } catch {
+      const subtotal = currentItems.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 1), 0);
+      const deliveryFee = subtotal >= 100 ? 0 : 30;
+      setCartSummary({
+        items: currentItems,
+        itemCount: currentItems.reduce((sum, i) => sum + (Number(i.qty) || 1), 0),
+        subtotal,
+        deliveryFee,
+        discount: 0,
+        total: subtotal + deliveryFee,
+        grandTotal: subtotal + deliveryFee,
+        estimatedDeliveryText: 'Today, 30–45 mins',
+      });
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Load Alerts & Dashboard Summary
@@ -73,16 +152,20 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const loadCart = useCallback(async () => {
-    if (!api.getAccessToken()) return;
+    if (!api.getAccessToken()) {
+      syncCartCalculations(cart);
+      return;
+    }
     try {
       const res = await api.cart.get();
       if (res && Array.isArray(res.items)) {
         setCart(res.items);
+        setCartSummary(res);
       }
     } catch {
-      // Keep local cart
+      syncCartCalculations(cart);
     }
-  }, []);
+  }, [cart, syncCartCalculations]);
 
   const loadActiveOrder = useCallback(async () => {
     try {
@@ -92,12 +175,19 @@ export const AppProvider = ({ children }) => {
         setActiveOrder({
           id: latest.id || latest.orderNumber || latest._id,
           orderNumber: latest.orderNumber,
-          status: latest.status,
-          etaMinutes: latest.etaMinutes || latest.eta_minutes || 18,
+          status: latest.status || 'CONFIRMED',
+          estimatedDeliveryAt: latest.estimatedDeliveryAt,
+          estimatedDeliveryText: latest.estimatedDeliveryText || 'Today, 30–45 mins',
+          currentLocation: latest.currentLocation || 'Live driver location will appear when available.',
+          etaMinutes: latest.etaMinutes || latest.eta_minutes || 30,
           riderName: latest.riderName || latest.rider_name || 'Vikram Singh',
           riderPhone: latest.riderPhone || latest.rider_phone || '+91 98765 43210',
           totalAmount: latest.total || latest.total_amount,
+          subtotal: latest.subtotal,
+          deliveryFee: latest.deliveryFee,
+          discount: latest.discount,
           items: latest.items || [],
+          trackingEvents: latest.trackingEvents || [],
         });
       }
     } catch {
@@ -106,10 +196,11 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Initial Hydration
+  // Initial Hydration & Health Check
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const hydrateSession = async () => {
+      await checkBackendHealth();
       loadDashboardSummary();
       loadAlerts();
 
@@ -117,14 +208,20 @@ export const AppProvider = ({ children }) => {
         try {
           const profile = await api.auth.me();
           if (profile) {
+            const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
             setUser((prev) => ({
               ...prev,
+              id: profile.id || profile._id || prev.id,
+              _id: profile._id || profile.id || prev._id,
               name: profile.name || profile.full_name || prev.name,
               email: profile.email || prev.email,
               role: profile.role || prev.role,
               businessName: profile.businessName || profile.business_name || prev.businessName,
+              phone: profile.phone || prev.phone,
+              address: profile.address || prev.address,
               isLoggedIn: true,
-              avatar: profile.avatar || prev.avatar,
+              avatar: photo,
+              profilePhoto: photo,
             }));
             await Promise.allSettled([
               loadCart(),
@@ -132,13 +229,13 @@ export const AppProvider = ({ children }) => {
             ]);
           }
         } catch {
-          // Token may be expired
+          // Token expired or invalid
         }
       }
     };
 
     hydrateSession();
-  }, [loadAlerts, loadDashboardSummary, loadCart, loadActiveOrder]);
+  }, [checkBackendHealth, loadAlerts, loadDashboardSummary, loadCart, loadActiveOrder]);
 
   // ---------------------------------------------------------------------------
   // Authentication Actions
@@ -149,13 +246,19 @@ export const AppProvider = ({ children }) => {
     try {
       const res = await api.auth.login({ email, password });
       const profile = res.user;
+      const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
       setUser({
+        id: profile.id || profile._id,
+        _id: profile._id || profile.id,
         name: profile.name || profile.full_name,
         email: profile.email,
         role: profile.role,
         businessName: profile.businessName || profile.business_name,
+        phone: profile.phone || '',
+        address: profile.address || '',
         isLoggedIn: true,
-        avatar: profile.avatar,
+        avatar: photo,
+        profilePhoto: photo,
       });
       await Promise.allSettled([
         loadCart(),
@@ -179,20 +282,20 @@ export const AppProvider = ({ children }) => {
     try {
       const res = await api.auth.register(regData);
       const profile = res.user;
+      const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
       setUser({
+        id: profile.id || profile._id,
+        _id: profile._id || profile.id,
         name: profile.name || profile.full_name,
         email: profile.email,
         role: profile.role,
         businessName: profile.businessName || profile.business_name,
+        phone: profile.phone || '',
+        address: profile.address || '',
         isLoggedIn: true,
-        avatar: profile.avatar,
+        avatar: photo,
+        profilePhoto: photo,
       });
-      await Promise.allSettled([
-        loadCart(),
-        loadAlerts(),
-        loadDashboardSummary(),
-        loadActiveOrder(),
-      ]);
       return { success: true };
     } catch (err) {
       const msg = err.message || 'Registration failed.';
@@ -203,9 +306,73 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
-    await api.auth.logout();
-    setUser((prev) => ({ ...prev, isLoggedIn: false }));
+  const logout = () => {
+    api.auth.logout();
+    setUser({
+      id: 'usr_guest',
+      _id: 'usr_guest',
+      name: 'Guest User',
+      email: '',
+      role: 'USER',
+      businessName: 'PharmaCare Central',
+      isLoggedIn: false,
+      avatar: DEFAULT_AVATAR,
+      profilePhoto: DEFAULT_AVATAR,
+    });
+    setCart([]);
+    setCartSummary(null);
+  };
+
+  const uploadProfilePhoto = async (dataUrl) => {
+    try {
+      const res = await api.auth.uploadPhoto(dataUrl);
+      if (res && res.user) {
+        const photo = res.user.profilePhoto || res.user.avatar;
+        setUser((prev) => ({
+          ...prev,
+          avatar: photo,
+          profilePhoto: photo,
+        }));
+      }
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const removeProfilePhoto = async () => {
+    try {
+      const res = await api.auth.removePhoto();
+      if (res && res.user) {
+        const photo = res.user.profilePhoto || res.user.avatar || DEFAULT_AVATAR;
+        setUser((prev) => ({
+          ...prev,
+          avatar: photo,
+          profilePhoto: photo,
+        }));
+      }
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    try {
+      const res = await api.auth.updateProfile(profileData);
+      if (res && res.user) {
+        setUser((prev) => ({
+          ...prev,
+          name: res.user.name || prev.name,
+          businessName: res.user.businessName || prev.businessName,
+          phone: res.user.phone || prev.phone,
+          address: res.user.address || prev.address,
+        }));
+      }
+      return res;
+    } catch (err) {
+      throw err;
+    }
   };
 
   const markAlertRead = async (alertId) => {
@@ -216,16 +383,15 @@ export const AppProvider = ({ children }) => {
   };
 
   // ---------------------------------------------------------------------------
-  // Cart Actions & Checkout with Expiry Validation
+  // Cart Actions & Authoritative Calculation
   // ---------------------------------------------------------------------------
   const addToCart = async (product, qty = 1) => {
-    // Check if medicine has expired locally as first layer
     if (product.expiryStatus === 'EXPIRED' || (product.expiryDate && new Date(product.expiryDate) < new Date())) {
       alert('This medicine has expired and cannot be purchased.');
       return { success: false, message: 'This medicine has expired and cannot be purchased.' };
     }
 
-    const pId = product.id || product._id;
+    const pId = product.rawId || product._id || product.id;
     const pType = product.productType || (product.rxRequired !== undefined || product.genericName ? 'Medicine' : 'HealthProduct');
 
     if (api.getAccessToken()) {
@@ -233,6 +399,7 @@ export const AppProvider = ({ children }) => {
         const res = await api.cart.add({ productId: pId, productType: pType, qty });
         if (res?.items) {
           setCart(res.items);
+          setCartSummary(res);
         }
         return { success: true };
       } catch (err) {
@@ -244,40 +411,89 @@ export const AppProvider = ({ children }) => {
     // Local cart fallback
     setCart((prev) => {
       const existing = prev.find((item) => item.id === pId || item.productId === pId);
+      let updated;
       if (existing) {
-        return prev.map((item) =>
+        updated = prev.map((item) =>
           item.id === pId || item.productId === pId ? { ...item, qty: item.qty + qty } : item
         );
+      } else {
+        updated = [
+          ...prev,
+          {
+            id: pId,
+            productId: pId,
+            name: product.name,
+            price: Number(product.price || 0),
+            qty,
+            image: product.image || product.img,
+            type: product.rxRequired ? 'Rx' : 'OTC',
+            productType: pType,
+          },
+        ];
       }
-      return [
-        ...prev,
-        {
-          id: pId,
-          productId: pId,
-          name: product.name,
-          price: product.price,
-          qty,
-          image: product.image || product.img,
-          type: product.rxRequired ? 'Rx' : 'OTC',
-          productType: pType,
-        },
-      ];
+      syncCartCalculations(updated);
+      return updated;
     });
 
     return { success: true };
+  };
+
+  const updateCartQty = async (itemId, newQty) => {
+    const targetQty = Math.max(0, parseInt(newQty, 10));
+
+    if (api.getAccessToken()) {
+      try {
+        if (targetQty === 0) {
+          const res = await api.cart.remove(itemId);
+          if (res?.items) {
+            setCart(res.items);
+            setCartSummary(res);
+          }
+        } else {
+          const res = await api.cart.update(itemId, targetQty);
+          if (res?.items) {
+            setCart(res.items);
+            setCartSummary(res);
+          }
+        }
+        return;
+      } catch {
+        // Fall through to local
+      }
+    }
+
+    setCart((prev) => {
+      let updated;
+      if (targetQty === 0) {
+        updated = prev.filter((item) => item.id !== itemId && item._id !== itemId && item.productId !== itemId);
+      } else {
+        updated = prev.map((item) =>
+          item.id === itemId || item._id === itemId || item.productId === itemId ? { ...item, qty: targetQty } : item
+        );
+      }
+      syncCartCalculations(updated);
+      return updated;
+    });
   };
 
   const removeFromCart = async (id) => {
     if (api.getAccessToken()) {
       try {
         const res = await api.cart.remove(id);
-        if (res?.items) setCart(res.items);
+        if (res?.items) {
+          setCart(res.items);
+          setCartSummary(res);
+        }
         return;
       } catch {
         // Fallback local
       }
     }
-    setCart((prev) => prev.filter((item) => item.id !== id && item._id !== id));
+    setCart((prev) => {
+      const updated = prev.filter((item) => item.id !== id && item._id !== id && item.productId !== id);
+      syncCartCalculations(updated);
+      return updated;
+    });
   };
 
   const clearCart = async () => {
@@ -289,6 +505,7 @@ export const AppProvider = ({ children }) => {
       }
     }
     setCart([]);
+    setCartSummary(null);
   };
 
   const checkoutOrder = async (orderPayload = {}) => {
@@ -317,12 +534,20 @@ export const AppProvider = ({ children }) => {
       setActiveOrder({
         id: created.id || created.orderNumber || created._id,
         orderNumber: created.orderNumber,
-        status: created.status || 'OUT_FOR_DELIVERY',
-        etaMinutes: created.etaMinutes || created.eta_minutes || 18,
+        status: created.status || 'CONFIRMED',
+        estimatedDeliveryAt: created.estimatedDeliveryAt,
+        estimatedDeliveryText: created.estimatedDeliveryText || 'Today, 30–45 mins',
+        currentLocation: created.currentLocation || 'Live driver location will appear when available.',
+        etaMinutes: created.etaMinutes || created.eta_minutes || 30,
         riderName: created.riderName || created.rider_name || 'Vikram Singh',
         riderPhone: created.riderPhone || created.rider_phone || '+91 98765 43210',
         totalAmount: created.total || created.total_amount,
+        subtotal: created.subtotal,
+        deliveryFee: created.deliveryFee,
+        discount: created.discount,
+        total: created.total,
         items: created.items || [],
+        trackingEvents: created.trackingEvents || [],
       });
 
       clearCart();
@@ -341,7 +566,12 @@ export const AppProvider = ({ children }) => {
         aiState,
         setAiState,
         cart,
+        cartSummary,
+        isCartOpen,
+        openCart,
+        closeCart,
         addToCart,
+        updateCartQty,
         removeFromCart,
         clearCart,
         checkoutOrder,
@@ -353,6 +583,11 @@ export const AppProvider = ({ children }) => {
         authLoading,
         authError,
         setAuthError,
+        uploadProfilePhoto,
+        removeProfilePhoto,
+        updateProfile,
+        backendHealth,
+        checkBackendHealth,
         activeOrder,
         setActiveOrder,
         loadActiveOrder,

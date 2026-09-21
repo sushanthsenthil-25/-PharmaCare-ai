@@ -3,6 +3,7 @@ import Medicine from '../models/Medicine.js';
 import HealthProduct from '../models/HealthProduct.js';
 import PersonalCareProduct from '../models/PersonalCareProduct.js';
 import { isMedicineExpired } from '../utils/expiry.js';
+import { calculateCart, calculateDeliveryEstimate } from '../services/cartService.js';
 
 // Helper to find product across models
 const findProduct = async (productId, productType) => {
@@ -12,11 +13,10 @@ const findProduct = async (productId, productType) => {
   if (productType === 'PersonalCareProduct') {
     return await PersonalCareProduct.findById(productId);
   }
-  // Default to Medicine
   return await Medicine.findById(productId);
 };
 
-// @desc    Get user's cart
+// @desc    Get user's cart with calculated subtotals, delivery fee, discounts, and ETA
 // @route   GET /api/cart
 // @access  Private
 export const getCart = async (req, res, next) => {
@@ -27,32 +27,37 @@ export const getCart = async (req, res, next) => {
       cart = await Cart.create({ userId: req.user._id, items: [] });
     }
 
-    const items = cart.items.map((item) => ({
-      _id: item._id,
-      id: item._id.toString(),
-      productId: item.productId,
-      productType: item.productType,
-      name: item.name,
-      price: item.price,
-      qty: item.qty,
-      image: item.image,
-      type: item.type,
-    }));
-
-    const totalAmount = items.reduce((sum, i) => sum + i.price * i.qty, 0);
+    const calculated = calculateCart(cart.items);
 
     res.json({
       success: true,
-      items,
-      itemCount: items.reduce((sum, i) => sum + i.qty, 0),
-      totalAmount,
+      ...calculated,
+      totalAmount: calculated.total,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Add item to cart with backend validation
+// @desc    Calculate cart summary without saving (useful for instant checkout or preview)
+// @route   POST /api/cart/calculate
+// @access  Public / Private
+export const calculateCartSummary = async (req, res, next) => {
+  try {
+    const { items = [], discountAmount = 0 } = req.body;
+    const calculated = calculateCart(items, { discountAmount });
+
+    res.json({
+      success: true,
+      ...calculated,
+      totalAmount: calculated.total,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add item to cart with backend validation and calculation
 // @route   POST /api/cart
 // @access  Private
 export const addToCart = async (req, res, next) => {
@@ -103,9 +108,8 @@ export const addToCart = async (req, res, next) => {
       cart = new Cart({ userId: req.user._id, items: [] });
     }
 
-    // Check if item already in cart
     const existingIndex = cart.items.findIndex(
-      (item) => item.productId.toString() === productId.toString()
+      (item) => item.productId?.toString() === productId.toString()
     );
 
     if (existingIndex > -1) {
@@ -138,24 +142,13 @@ export const addToCart = async (req, res, next) => {
 
     await cart.save();
 
-    const items = cart.items.map((item) => ({
-      _id: item._id,
-      id: item._id.toString(),
-      productId: item.productId,
-      productType: item.productType,
-      name: item.name,
-      price: item.price,
-      qty: item.qty,
-      image: item.image,
-      type: item.type,
-    }));
+    const calculated = calculateCart(cart.items);
 
     res.status(200).json({
       success: true,
       message: 'Product added to cart',
-      items,
-      itemCount: items.reduce((sum, i) => sum + i.qty, 0),
-      totalAmount: items.reduce((sum, i) => sum + i.price * i.qty, 0),
+      ...calculated,
+      totalAmount: calculated.total,
     });
   } catch (error) {
     next(error);
@@ -188,7 +181,7 @@ export const updateCartItem = async (req, res, next) => {
     }
 
     const itemIndex = cart.items.findIndex(
-      (item) => item._id.toString() === itemId || item.productId?.toString() === itemId
+      (item) => item._id?.toString() === itemId || item.productId?.toString() === itemId
     );
 
     if (itemIndex === -1) {
@@ -214,11 +207,12 @@ export const updateCartItem = async (req, res, next) => {
 
     await cart.save();
 
+    const calculated = calculateCart(cart.items);
+
     res.json({
       success: true,
-      items: cart.items,
-      itemCount: cart.items.reduce((sum, i) => sum + i.qty, 0),
-      totalAmount: cart.items.reduce((sum, i) => sum + i.price * i.qty, 0),
+      ...calculated,
+      totalAmount: calculated.total,
     });
   } catch (error) {
     next(error);
@@ -241,17 +235,18 @@ export const removeCartItem = async (req, res, next) => {
     }
 
     cart.items = cart.items.filter(
-      (item) => item._id.toString() !== itemId && item.productId?.toString() !== itemId
+      (item) => item._id?.toString() !== itemId && item.productId?.toString() !== itemId
     );
 
     await cart.save();
 
+    const calculated = calculateCart(cart.items);
+
     res.json({
       success: true,
       message: 'Item removed from cart',
-      items: cart.items,
-      itemCount: cart.items.reduce((sum, i) => sum + i.qty, 0),
-      totalAmount: cart.items.reduce((sum, i) => sum + i.price * i.qty, 0),
+      ...calculated,
+      totalAmount: calculated.total,
     });
   } catch (error) {
     next(error);
@@ -269,11 +264,12 @@ export const clearCart = async (req, res, next) => {
       await cart.save();
     }
 
+    const calculated = calculateCart([]);
+
     res.json({
       success: true,
       message: 'Cart cleared',
-      items: [],
-      itemCount: 0,
+      ...calculated,
       totalAmount: 0,
     });
   } catch (error) {

@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getCart,
+  calculateCartSummary,
   addToCart,
   updateCartItem,
   removeCartItem,
@@ -10,7 +11,11 @@ import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.use(protect); // All cart endpoints require authentication
+// Calculation endpoint (can be called with or without auth)
+router.post('/calculate', calculateCartSummary);
+
+// Protected user cart routes
+router.use(protect);
 
 router.route('/')
   .get(getCart)

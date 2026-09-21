@@ -6,44 +6,68 @@ import api from '../services/api';
 const STATUS_PROGRESS = {
   PLACED: 1,
   CONFIRMED: 2,
-  PACKED: 3,
+  PREPARING: 3,
+  PACKED: 4,
   SHIPPED: 4,
-  OUT_FOR_DELIVERY: 4,
-  DELIVERED: 5,
+  OUT_FOR_DELIVERY: 5,
+  DELIVERED: 6,
   CANCELLED: -1,
 };
 
 export const TrackOrderPage = () => {
   const navigate = useNavigate();
-  const { activeOrder, cart, loadActiveOrder, checkoutOrder } = useApp();
+  const { activeOrder, cart, loadActiveOrder, openCart } = useApp();
   const [orderData, setOrderData] = useState(null);
   const [searchOrderId, setSearchOrderId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [placingOrder, setPlacingOrder] = useState(false);
   const [searchError, setSearchError] = useState(null);
+
+  const activeId = activeOrder.orderNumber || activeOrder.id || 'ORD-8942';
+
+  const fetchTracking = async (idToQuery) => {
+    try {
+      const res = await api.orders.getTracking(idToQuery);
+      if (res && res.success) {
+        setOrderData(res);
+        return res;
+      }
+    } catch {
+      try {
+        const order = await api.orders.getById(idToQuery);
+        if (order) setOrderData(order);
+      } catch {
+        // Keep active order
+      }
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
-    const fetchLatestOrder = async () => {
+    let pollInterval = null;
+
+    const loadData = async () => {
       setLoading(true);
-      try {
-        const orderIdToLookup = activeOrder.orderNumber || activeOrder.id || 'ORD-8942';
-        const res = await api.orders.getById(orderIdToLookup);
-        if (isMounted && res) {
-          setOrderData(res);
-        }
-      } catch {
-        // Fallback to activeOrder from context
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      await fetchTracking(activeId);
+      if (isMounted) setLoading(false);
     };
 
-    fetchLatestOrder();
+    loadData();
+
+    // Poll live tracking every 12 seconds
+    pollInterval = setInterval(() => {
+      if (isMounted) {
+        const currentId = orderData?.orderNumber || orderData?.id || activeId;
+        if (orderData?.status !== 'DELIVERED' && orderData?.status !== 'CANCELLED') {
+          fetchTracking(currentId);
+        }
+      }
+    }, 12000);
+
     return () => {
       isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
     };
-  }, [activeOrder.id, activeOrder.orderNumber]);
+  }, [activeId, orderData?.status]);
 
   const handleSearchOrder = async (e) => {
     e.preventDefault();
@@ -51,9 +75,9 @@ export const TrackOrderPage = () => {
     setLoading(true);
     setSearchError(null);
     try {
-      const res = await api.orders.getById(searchOrderId.trim());
-      if (res) {
-        setOrderData(res);
+      const res = await fetchTracking(searchOrderId.trim());
+      if (!res) {
+        setSearchError(`Order "${searchOrderId}" not found.`);
       }
     } catch (err) {
       setSearchError(`Order "${searchOrderId}" not found.`);
@@ -62,42 +86,33 @@ export const TrackOrderPage = () => {
     }
   };
 
-  const currentStatus = orderData?.status || activeOrder.status || 'OUT_FOR_DELIVERY';
-  const progressIdx = STATUS_PROGRESS[currentStatus] ?? 4;
-  const orderIdDisplay = orderData?.orderNumber || orderData?.id || activeOrder.orderNumber || activeOrder.id;
-  const etaMinutes = orderData?.eta_minutes || orderData?.etaMinutes || activeOrder.etaMinutes || 18;
-  const riderName = orderData?.rider_name || orderData?.riderName || activeOrder.riderName || 'Vikram Singh';
-  const riderPhone = orderData?.rider_phone || orderData?.riderPhone || activeOrder.riderPhone || '+91 98765 43210';
-  const deliveryAddress = orderData?.delivery_address || orderData?.shippingAddress || 'Indiranagar 100ft Rd, Bangalore 560038';
+  const currentStatus = orderData?.status || activeOrder.status || 'CONFIRMED';
+  const progressIdx = STATUS_PROGRESS[currentStatus] ?? 2;
+  const orderIdDisplay = orderData?.orderNumber || orderData?.orderId || orderData?.id || activeOrder.orderNumber || activeOrder.id;
+  const etaText = orderData?.estimatedDeliveryText || activeOrder.estimatedDeliveryText || 'Today, 30–45 mins';
+  const etaMinutes = orderData?.etaMinutes || orderData?.eta_minutes || activeOrder.etaMinutes || 30;
+  const riderName = orderData?.riderName || orderData?.rider_name || activeOrder.riderName || 'Vikram Singh';
+  const riderPhone = orderData?.riderPhone || orderData?.rider_phone || activeOrder.riderPhone || '+91 98765 43210';
+  const deliveryAddress = orderData?.shippingAddress || orderData?.delivery_address || 'Indiranagar 100ft Rd, Bangalore 560038';
+  const currentLocation = orderData?.currentLocation || 'Live driver location will appear when available.';
 
   const steps = [
-    { title: 'Order Placed & Confirmed', completed: progressIdx >= 1, current: progressIdx === 1, time: 'Just now' },
-    { title: 'AI Prescription Verified', completed: progressIdx >= 2, current: progressIdx === 2, time: '10:04 AM' },
-    { title: 'Pharmacy Dispensed & Packed', completed: progressIdx >= 3, current: progressIdx === 3, time: '10:10 AM' },
-    { title: 'Out for Delivery (Express Moped)', completed: progressIdx >= 4, current: progressIdx === 4, time: '10:15 AM' },
-    { title: 'Delivered at Doorstep', completed: progressIdx >= 5, current: progressIdx === 5, time: `Est. ${etaMinutes} mins` },
+    { title: 'Order Placed & Received', description: 'Order registered in PharmaCare Express', completed: progressIdx >= 1, current: progressIdx === 1 },
+    { title: 'Clinical Prescription Verified', description: 'AI safety dosage & item check verified', completed: progressIdx >= 2, current: progressIdx === 2 },
+    { title: 'Pharmacy Dispensing & Prepping', description: 'Certified pharmacist preparing items', completed: progressIdx >= 3, current: progressIdx === 3 },
+    { title: 'Tamper-Proof Packed & Sealed', description: 'Sealed with clinical barcode tag', completed: progressIdx >= 4, current: progressIdx === 4 },
+    { title: 'Out for Delivery (Express Moped)', description: `${riderName} is on the way`, completed: progressIdx >= 5, current: progressIdx === 5 },
+    { title: 'Delivered at Doorstep', description: 'Handed over at Indiranagar delivery point', completed: progressIdx >= 6, current: progressIdx === 6 },
   ];
 
-  const handlePlaceNewOrder = async () => {
-    if (cart.length === 0) {
-      navigate('/medicines');
-      return;
-    }
-    setPlacingOrder(true);
-    try {
-      const created = await checkoutOrder();
-      if (created) {
-        setOrderData(created);
-      }
-    } catch (err) {
-      alert(err.message || 'Could not place order');
-    } finally {
-      setPlacingOrder(false);
-    }
-  };
+  const subtotal = orderData?.subtotal ?? activeOrder.subtotal ?? (orderData?.items || activeOrder.items || []).reduce((s, i) => s + (i.price || 0) * (i.qty || 1), 0);
+  const deliveryFee = orderData?.deliveryFee ?? activeOrder.deliveryFee ?? (subtotal >= 100 ? 0 : 30);
+  const discount = orderData?.discount ?? activeOrder.discount ?? 0;
+  const grandTotal = orderData?.total ?? orderData?.total_amount ?? activeOrder.totalAmount ?? (subtotal + deliveryFee - discount);
+  const displayItems = orderData?.items?.length ? orderData.items : (activeOrder.items?.length ? activeOrder.items : cart);
 
   return (
-    <div className="flex flex-col w-full px-margin pb-16 gap-y-4 pt-2">
+    <div className="flex flex-col w-full px-margin pb-20 gap-y-4 pt-2">
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <button
@@ -109,8 +124,11 @@ export const TrackOrderPage = () => {
         <h1 className="font-headline-sm text-base font-bold text-primary">Live Express Order Tracking</h1>
         <button 
           aria-label="Refresh Order"
-          onClick={() => loadActiveOrder()}
-          className="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-primary"
+          onClick={() => {
+            loadActiveOrder();
+            fetchTracking(orderIdDisplay);
+          }}
+          className="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-primary hover:bg-surface-container"
         >
           <span className="material-symbols-outlined text-[18px]">refresh</span>
         </button>
@@ -140,7 +158,7 @@ export const TrackOrderPage = () => {
       )}
 
       {/* Express ETA Hero Banner */}
-      <div className="p-5 rounded-2xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-3">
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="px-2.5 py-1 rounded-full bg-surface-container-lowest/30 backdrop-blur-sm font-label-sm text-[11px] font-bold tracking-wider uppercase">
             30-Min Express Delivery
@@ -149,18 +167,32 @@ export const TrackOrderPage = () => {
         </div>
 
         <div className="flex flex-col gap-1 my-1">
-          <span className="text-xs opacity-90 font-medium">Estimated Arrival Time</span>
-          <h2 className="font-headline-lg text-3xl font-extrabold tracking-tight">
-            {currentStatus === 'DELIVERED' ? 'Delivered' : `${etaMinutes} Minutes`}
+          <span className="text-xs opacity-90 font-medium">Estimated Arrival Window</span>
+          <h2 className="font-headline-lg text-2xl font-extrabold tracking-tight">
+            {currentStatus === 'DELIVERED' ? 'Delivered' : etaText}
           </h2>
-          <span className="text-[11px] font-semibold text-primary/80">Status: {currentStatus}</span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            <span className="text-xs font-bold text-primary">Status: {currentStatus.replace(/_/g, ' ')}</span>
+          </div>
         </div>
 
         <div className="w-full bg-surface-container-lowest/30 rounded-full h-2 overflow-hidden">
           <div 
-            className="bg-primary h-full rounded-full transition-all duration-500 animate-pulse" 
-            style={{ width: `${Math.min(100, Math.max(20, progressIdx * 20))}%` }}
+            className="bg-primary h-full rounded-full transition-all duration-500" 
+            style={{ width: `${Math.min(100, Math.max(16, progressIdx * 16.6))}%` }}
           ></div>
+        </div>
+      </div>
+
+      {/* Driver Location Info (Accurate Non-hallucinated status) */}
+      <div className="p-3.5 rounded-2xl bg-surface-container-low/40 border border-outline-variant/15 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
+          <span className="material-symbols-outlined text-[20px]">explore</span>
+        </div>
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="text-[10px] uppercase font-bold text-on-surface-variant">Live Driver GPS</span>
+          <span className="text-xs font-semibold text-primary truncate">{currentLocation}</span>
         </div>
       </div>
 
@@ -168,12 +200,12 @@ export const TrackOrderPage = () => {
       <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-[26px]">moped</span>
+            <span className="material-symbols-outlined text-[24px]">moped</span>
           </div>
           <div className="flex flex-col">
             <span className="text-[11px] font-bold text-secondary uppercase">Express Delivery Partner</span>
             <h4 className="font-headline-sm text-sm font-bold text-primary">{riderName}</h4>
-            <span className="text-xs text-on-surface-variant">To: {deliveryAddress}</span>
+            <span className="text-xs text-on-surface-variant truncate max-w-[190px]">To: {deliveryAddress}</span>
           </div>
         </div>
         <a
@@ -195,7 +227,7 @@ export const TrackOrderPage = () => {
             <div key={idx} className="flex gap-4 items-start relative">
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-10 ${
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-10 transition-all ${
                     step.completed
                       ? 'bg-emerald-500 text-white'
                       : step.current
@@ -221,58 +253,69 @@ export const TrackOrderPage = () => {
               <div className="flex flex-col">
                 <h4
                   className={`font-headline-sm text-xs font-bold ${
-                    step.current ? 'text-primary' : step.completed ? 'text-on-surface' : 'text-on-surface-variant'
+                    step.current ? 'text-primary font-extrabold' : step.completed ? 'text-on-surface' : 'text-on-surface-variant'
                   }`}
                 >
                   {step.title}
                 </h4>
-                <span className="text-[11px] text-on-surface-variant">{step.time}</span>
+                <span className="text-[11px] text-on-surface-variant">{step.description}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Items Summary & Instant Checkout */}
+      {/* Items Summary & Cart Management */}
       <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-headline-sm text-sm font-bold text-primary">Order Summary</h3>
+          <h3 className="font-headline-sm text-sm font-bold text-primary">Order Items & Bill Details</h3>
           {cart.length > 0 && (
             <button
-              onClick={handlePlaceNewOrder}
-              disabled={placingOrder}
-              className="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold shadow-sm hover:bg-primary/90 flex items-center gap-1"
+              onClick={openCart}
+              className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 flex items-center gap-1"
             >
-              {placingOrder ? 'Placing...' : 'Checkout Cart'}
+              <span className="material-symbols-outlined text-[14px]">shopping_bag</span>
+              <span>Open Cart ({cart.reduce((s, i) => s + (i.qty || 1), 0)})</span>
             </button>
           )}
         </div>
 
         <div className="flex flex-col gap-2">
-          {orderData?.items && orderData.items.length > 0 ? (
-            orderData.items.map((item, idx) => (
+          {displayItems.map((item, idx) => {
+            const price = Number(item.price || item.unit_price || 0);
+            const qty = item.qty || item.quantity || 1;
+            const lineTotal = item.lineTotal || item.line_total || price * qty;
+            return (
               <div key={idx} className="flex justify-between items-center text-xs">
-                <span className="text-on-surface font-medium">
-                  {item.qty}x {item.name || 'Product'}
+                <span className="text-on-surface font-medium truncate max-w-[220px]">
+                  {qty}x {item.name || 'Product'}
                 </span>
-                <span className="font-bold text-primary">₹{item.lineTotal || item.line_total || item.price * item.qty}</span>
+                <span className="font-bold text-primary">₹{lineTotal}</span>
               </div>
-            ))
-          ) : (
-            cart.map((item) => (
-              <div key={item.id} className="flex justify-between items-center text-xs">
-                <span className="text-on-surface font-medium">
-                  {item.qty}x {item.name}
-                </span>
-                <span className="font-bold text-primary">₹{item.price * item.qty}</span>
+            );
+          })}
+
+          <div className="border-t border-outline-variant/20 pt-2 flex flex-col gap-1 text-xs">
+            <div className="flex justify-between text-on-surface-variant">
+              <span>Subtotal</span>
+              <span>₹{subtotal}</span>
+            </div>
+            <div className="flex justify-between text-on-surface-variant">
+              <span>Delivery Fee</span>
+              <span className={deliveryFee === 0 ? 'text-emerald-600 font-bold' : ''}>
+                {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
+              </span>
+            </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-emerald-600">
+                <span>Discount</span>
+                <span>-₹{discount}</span>
               </div>
-            ))
-          )}
-          <div className="border-t border-outline-variant/20 pt-2 flex justify-between items-center font-bold text-sm text-primary">
-            <span>Total Amount (Demo Express COD)</span>
-            <span>
-              ₹{orderData?.total || orderData?.total_amount || cart.reduce((sum, item) => sum + item.price * item.qty, 0)}
-            </span>
+            )}
+            <div className="border-t border-outline-variant/20 pt-1.5 flex justify-between font-bold text-sm text-primary">
+              <span>Total (Paid via Demo COD)</span>
+              <span className="text-secondary font-extrabold">₹{grandTotal}</span>
+            </div>
           </div>
         </div>
       </div>
