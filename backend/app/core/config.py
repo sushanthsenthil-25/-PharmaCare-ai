@@ -1,13 +1,21 @@
-from typing import List
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+import importlib
+from typing import List, Any, Dict
+from pydantic import BaseModel
+
+try:
+    _ps = importlib.import_module("pydantic_settings")
+    BaseSettings = getattr(_ps, "BaseSettings", BaseModel)
+except Exception:
+    BaseSettings = BaseModel
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config: Dict[str, Any] = {"extra": "ignore", "env_file": ".env", "env_file_encoding": "utf-8"}
 
     # Database (MongoDB)
-    MONGODB_URL: str = ""
-    MONGODB_URI: str = ""
+    MONGODB_URL: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.p7102kd.mongodb.net/pharmacare?retryWrites=true&w=majority"
+    MONGODB_URI: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.p7102kd.mongodb.net/pharmacare?retryWrites=true&w=majority"
     MONGODB_DB_NAME: str = "pharmacare"
 
     @property
