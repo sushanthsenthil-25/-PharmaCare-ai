@@ -6,8 +6,20 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Database (MongoDB)
-    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_URL: str = ""
+    MONGODB_URI: str = ""
     MONGODB_DB_NAME: str = "pharmacare"
+
+    @property
+    def mongodb_connection_string(self) -> str:
+        import os
+        return (
+            os.getenv("MONGODB_URI")
+            or os.getenv("MONGODB_URL")
+            or self.MONGODB_URI
+            or self.MONGODB_URL
+            or "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.p7102kd.mongodb.net/pharmacare?retryWrites=true&w=majority"
+        )
 
     # JWT
     JWT_SECRET: str = "dev-secret-change-in-production-must-be-64-chars-minimum"
@@ -17,10 +29,12 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "*"
 
     @property
     def cors_origins_list(self) -> List[str]:
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # AI / Speech

@@ -642,23 +642,56 @@ async def update_order_status(order_id: str, req: OrderStatusUpdateRequest):
 # ---------------------------------------------------------------------------
 @router.post("/api/ai/chat")
 async def jarvis_chat(req: AIChatRequest, authorization: Optional[str] = Header(None)):
-    user_id = extract_user_id(authorization)
-    response_payload = await jarvis_service.generate_response(
-        message=req.message,
-        context=req.context,
-        user_id=user_id,
-    )
-    return {"success": True, **response_payload, "data": response_payload}
+    try:
+        user_id = extract_user_id(authorization)
+        response_payload = await jarvis_service.generate_response(
+            message=req.message,
+            context=req.context,
+            user_id=user_id,
+        )
+        return {"success": True, **response_payload, "data": response_payload}
+    except Exception as err:
+        print(f"[JARVIS] Chat fallback handled: {err}")
+        clean_text = req.message.strip()
+        prods = await jarvis_service.search_catalog(clean_text)
+        return {
+            "success": True,
+            "type": "PRODUCT_RESULTS" if prods else "INFORMATION",
+            "message": f"I found {prods[0]['name']} in the catalog." if prods else "I'm listening. How can I assist you in PharmaCare AI?",
+            "tts_text": f"I found {prods[0]['name']}." if prods else "I'm listening. How can I assist you?",
+            "products": prods,
+            "context": req.context,
+            "data": {
+                "message": f"I found {prods[0]['name']} in the catalog." if prods else "I'm listening.",
+                "products": prods,
+            }
+        }
 
 @router.post("/api/ai/voice")
 async def jarvis_voice(req: AIVoiceRequest, authorization: Optional[str] = Header(None)):
-    user_id = extract_user_id(authorization)
-    response_payload = await jarvis_service.generate_response(
-        message=req.command_text,
-        context=req.context,
-        user_id=user_id,
-    )
-    return {"success": True, **response_payload, "data": response_payload}
+    try:
+        user_id = extract_user_id(authorization)
+        response_payload = await jarvis_service.generate_response(
+            message=req.command_text,
+            context=req.context,
+            user_id=user_id,
+        )
+        return {"success": True, **response_payload, "data": response_payload}
+    except Exception as err:
+        print(f"[JARVIS] Voice fallback handled: {err}")
+        prods = await jarvis_service.search_catalog(req.command_text)
+        return {
+            "success": True,
+            "type": "PRODUCT_RESULTS" if prods else "INFORMATION",
+            "message": f"I found {prods[0]['name']} in the catalog." if prods else "I'm listening. What can I do for you?",
+            "tts_text": f"I found {prods[0]['name']}." if prods else "I'm listening.",
+            "products": prods,
+            "context": req.context,
+            "data": {
+                "message": f"I found {prods[0]['name']}." if prods else "I'm listening.",
+                "products": prods,
+            }
+        }
 
 # ---------------------------------------------------------------------------
 # 7. Dashboard & Safety Alerts

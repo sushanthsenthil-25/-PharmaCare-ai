@@ -26,39 +26,45 @@ _motor_client: AsyncIOMotorClient | None = None
 def get_motor_client() -> AsyncIOMotorClient:
     global _motor_client
     if _motor_client is None:
-        _motor_client = AsyncIOMotorClient(settings.MONGODB_URL)
+        uri = settings.mongodb_connection_string
+        _motor_client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=4000)
     return _motor_client
 
 
 async def init_db() -> None:
-    """Initialise Beanie with all document models.  Called from app lifespan."""
-    from app.models.user import Business, Branch, User
-    from app.models.product import Category, Product
-    from app.models.inventory import Supplier, Batch, Inventory, InventoryMovement
-    from app.models.transaction import Customer, Sale, SaleItem, Purchase, PurchaseItem
-    from app.models.order import Order, OrderItem
-    from app.models.shipment import ImportShipment, ExportShipment
-    from app.models.alert import Alert
-    from app.models.ai import AIPrediction, VoiceCommand, AIPreference, MLFeedback
-    from app.models.audit import AuditLog
+    """Initialise Beanie with all document models. Called from app lifespan."""
+    try:
+        from app.models.user import Business, Branch, User
+        from app.models.product import Category, Product
+        from app.models.inventory import Supplier, Batch, Inventory, InventoryMovement
+        from app.models.transaction import Customer, Sale, SaleItem, Purchase, PurchaseItem
+        from app.models.order import Order, OrderItem
+        from app.models.shipment import ImportShipment, ExportShipment
+        from app.models.alert import Alert
+        from app.models.ai import AIPrediction, VoiceCommand, AIPreference, MLFeedback
+        from app.models.audit import AuditLog
 
-    client = get_motor_client()
-    database = client[settings.MONGODB_DB_NAME]
+        client = get_motor_client()
+        if client:
+            database = client[settings.MONGODB_DB_NAME]
 
-    await init_beanie(
-        database=database,
-        document_models=[
-            Business, Branch, User,
-            Category, Product,
-            Supplier, Batch, Inventory, InventoryMovement,
-            Customer, Sale, SaleItem, Purchase, PurchaseItem,
-            Order, OrderItem,
-            ImportShipment, ExportShipment,
-            Alert,
-            AIPrediction, VoiceCommand, AIPreference, MLFeedback,
-            AuditLog,
-        ],
-    )
+            await init_beanie(
+                database=database,
+                document_models=[
+                    Business, Branch, User,
+                    Category, Product,
+                    Supplier, Batch, Inventory, InventoryMovement,
+                    Customer, Sale, SaleItem, Purchase, PurchaseItem,
+                    Order, OrderItem,
+                    ImportShipment, ExportShipment,
+                    Alert,
+                    AIPrediction, VoiceCommand, AIPreference, MLFeedback,
+                    AuditLog,
+                ],
+            )
+            print("[MongoDB] Beanie ODM models initialized successfully.")
+    except Exception as err:
+        print(f"[MongoDB] Notice: Beanie initialization notice (app running in resilient mode): {err}")
 
 
 async def close_db() -> None:

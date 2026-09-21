@@ -10,12 +10,8 @@ const getInitialApiUrl = () => {
   if (envUrl && envUrl.trim()) {
     return envUrl.trim().replace(/\/$/, '');
   }
-  // If in browser production environment and no env var provided, use same-origin relative /api
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return '/api';
-  }
-  // Local development fallback
-  return 'http://localhost:5000';
+  // Default to same-origin relative root so /api routes automatically via Vite proxy or Vercel rewrites
+  return '';
 };
 
 const API_BASE_URL = getInitialApiUrl();
@@ -74,14 +70,12 @@ class ApiClient {
 
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-    // If baseUrl already ends with /api and endpoint starts with /api/, avoid duplicate
-    if (this.baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
-      return `${this.baseUrl}${cleanEndpoint.slice(4)}`;
+    if (!this.baseUrl) {
+      return cleanEndpoint.startsWith('/api') ? cleanEndpoint : `/api${cleanEndpoint}`;
     }
 
-    // If baseUrl is empty or just '/api', handle cleanly
-    if (this.baseUrl === '/api') {
-      return cleanEndpoint.startsWith('/api') ? cleanEndpoint : `/api${cleanEndpoint}`;
+    if (this.baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+      return `${this.baseUrl}${cleanEndpoint.slice(4)}`;
     }
 
     return `${this.baseUrl}${cleanEndpoint}`;
