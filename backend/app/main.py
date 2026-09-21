@@ -21,6 +21,7 @@ from app.routers import (
     ai,
     ml,
     audit,
+    public_api,
 )
 from app.websocket.router import ws_router
 
@@ -84,6 +85,7 @@ app.include_router(analytics.router)
 app.include_router(ai.router)
 app.include_router(ml.router)
 app.include_router(audit.router)
+app.include_router(public_api.router)
 app.include_router(ws_router, prefix="/api/v1")
 
 
