@@ -2,14 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import api from '../services/api';
-
-const DEFAULT_PERSONAL_IMG = "data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3e%3crect width='100' height='100' fill='%23f1f5f9' rx='12'/%3e%3cpath d='M50 30v40M30 50h40' stroke='%235444ca' stroke-width='6' stroke-linecap='round'/%3e%3c/svg%3e";
+import { getProductImageUrl, handleImageError } from '../utils/productImages';
 
 export const PersonalCarePage = () => {
   const navigate = useNavigate();
   const { addToCart } = useApp();
   const [personalItems, setPersonalItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+
+  const categories = [
+    'All',
+    'Serums & Treatments',
+    'Haircare & Growth',
+    'Sun Protection',
+    'Cleansers & Facewash',
+    'Moisturizers & Creams',
+    'Acne & Blemish Care',
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -23,11 +34,12 @@ export const PersonalCarePage = () => {
             id: p._id || p.id,
             rawId: p._id || p.id,
             name: p.name,
+            category: p.category || 'Clinical Skincare',
             desc: p.description || 'Clinical Skincare & Hygiene Formulation',
             price: Number(p.price || 320),
             originalPrice: p.originalPrice || Math.round(Number(p.price || 320) * 1.25),
             tag: p.tag || 'Dermatologist Verified',
-            img: p.image || DEFAULT_PERSONAL_IMG,
+            img: getProductImageUrl(p),
             stock: p.stock !== undefined ? p.stock : 50,
             productType: 'PersonalCareProduct',
           }));
@@ -46,8 +58,15 @@ export const PersonalCarePage = () => {
     };
   }, []);
 
+  const filteredItems = personalItems.filter((item) => {
+    const matchesCat = activeCategory === 'All' || (item.category || '').toLowerCase() === activeCategory.toLowerCase();
+    const matchesSearch = !searchFilter.trim() || item.name.toLowerCase().includes(searchFilter.trim().toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
   return (
-    <div className="flex flex-col w-full px-margin pb-12 gap-y-4">
+    <div className="flex flex-col w-full px-margin pb-16 gap-y-4">
+      {/* Title & Banner */}
       <div className="flex flex-col gap-1 pt-2">
         <h1 className="font-headline-md text-xl text-primary font-bold">
           Personal Care & Derma Science
@@ -57,6 +76,7 @@ export const PersonalCarePage = () => {
         </p>
       </div>
 
+      {/* Trust Badges */}
       <div className="grid grid-cols-2 gap-3 my-1">
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
           <span className="material-symbols-outlined text-emerald-600 text-[20px]">verified</span>
@@ -68,23 +88,61 @@ export const PersonalCarePage = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3.5">
-        {loading && personalItems.length === 0 && (
-          <div className="h-28 bg-surface-container-low rounded-2xl animate-pulse"></div>
-        )}
+      {/* Category Filter Chips */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            className={`px-3 py-1.5 rounded-full font-label-sm text-xs font-semibold whitespace-nowrap transition-all ${
+              activeCategory === cat
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
 
-        {personalItems.map((item) => (
+      {/* Search Input */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-[18px]">search</span>
+        <input
+          type="text"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          placeholder="Search personal care, serums, sunscreen..."
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      {/* Loading Skeleton */}
+      {loading && personalItems.length === 0 && (
+        <div className="flex flex-col gap-3 py-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 bg-surface-container-low rounded-2xl animate-pulse"></div>
+          ))}
+        </div>
+      )}
+
+      {/* Personal Care List */}
+      <div className="flex flex-col gap-3.5">
+        {filteredItems.map((item) => (
           <div
             key={item.id}
-            className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3"
+            className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3 transition-all hover:border-primary/30"
           >
             <div className="flex gap-3">
               <img
                 src={item.img}
                 alt={item.name}
-                onError={(e) => { e.target.src = DEFAULT_PERSONAL_IMG; }}
+                width="80"
+                height="80"
+                loading="lazy"
+                onError={(e) => handleImageError(e, 'PersonalCare')}
                 onClick={() => navigate(`/product/${item.id}`)}
-                className="w-20 h-20 rounded-xl object-cover bg-surface-container-low cursor-pointer shrink-0 border border-outline-variant/10"
+                className="w-20 h-20 rounded-xl object-contain bg-surface-container-low cursor-pointer shrink-0 border border-outline-variant/10 p-1"
               />
               <div className="flex flex-col justify-between flex-1 min-w-0">
                 <div>
@@ -113,6 +171,12 @@ export const PersonalCarePage = () => {
             </button>
           </div>
         ))}
+
+        {!loading && filteredItems.length === 0 && (
+          <div className="p-8 text-center text-xs text-on-surface-variant bg-surface-container-low/50 rounded-2xl">
+            No personal care products match the selected category or search query.
+          </div>
+        )}
       </div>
     </div>
   );

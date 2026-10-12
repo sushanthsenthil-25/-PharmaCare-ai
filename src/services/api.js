@@ -254,10 +254,42 @@ class ApiClient {
     },
   };
 
-  // Indian Medicine Catalogue (FastAPI)
+  // Indian Medicine Catalogue (FastAPI - 11,621 Formulations)
   medicineCatalogue = {
-    search: async (q, page = 1, pageSize = 20) => {
-      return await this.get('/api/v1/medicine-catalogue/search', { q, page, page_size: pageSize });
+    search: async (q, params = {}) => {
+      const page = typeof params === 'number' ? params : (params.page || 1);
+      const pageSize = params.pageSize || params.page_size || 20;
+      const sortBy = params.sortBy || params.sort_by || 'name';
+      return await this.get('/api/v1/medicine-catalogue/search', {
+        q,
+        page,
+        page_size: pageSize,
+        sort_by: sortBy,
+      });
+    },
+
+    list: async (params = {}) => {
+      const queryParams = {
+        page: params.page || 1,
+        page_size: params.pageSize || params.page_size || 20,
+        sort_by: params.sortBy || params.sort_by || 'name',
+      };
+      if (params.dosageForm && params.dosageForm !== 'All') {
+        queryParams.dosage_form = params.dosageForm;
+      }
+      if (params.manufacturer) {
+        queryParams.manufacturer = params.manufacturer;
+      }
+      return await this.get('/api/v1/medicine-catalogue', queryParams);
+    },
+
+    getById: async (id) => {
+      const cleanId = String(id).replace(/^catalogue_/, '');
+      return await this.get(`/api/v1/medicine-catalogue/${cleanId}`);
+    },
+
+    getCategories: async () => {
+      return await this.get('/api/v1/medicine-catalogue/categories');
     },
   };
 
@@ -268,6 +300,14 @@ class ApiClient {
       return res?.medicines || res?.items || res;
     },
     getById: async (productId) => {
+      const pId = String(productId || '');
+      if (pId.startsWith('catalogue_') || /^\d+$/.test(pId)) {
+        try {
+          return await this.medicineCatalogue.getById(pId);
+        } catch {
+          // fallback to next options
+        }
+      }
       try {
         const res = await this.get(`/api/medicines/${productId}`);
         return res?.medicine || res;
@@ -276,8 +316,12 @@ class ApiClient {
           const res = await this.get(`/api/health-products/${productId}`);
           return res?.product || res;
         } catch {
-          const res = await this.get(`/api/personal-care/${productId}`);
-          return res?.product || res;
+          try {
+            const res = await this.get(`/api/personal-care/${productId}`);
+            return res?.product || res;
+          } catch {
+            return await this.medicineCatalogue.getById(productId);
+          }
         }
       }
     },

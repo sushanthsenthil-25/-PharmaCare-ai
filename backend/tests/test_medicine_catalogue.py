@@ -115,3 +115,54 @@ async def test_search_field_types_serialization(client: AsyncClient):
         assert isinstance(item["isDiscontinued"], bool)
         assert isinstance(item["sourceVerified"], bool)
         assert isinstance(item["priceMissing"], bool)
+
+
+@pytest.mark.asyncio
+async def test_list_catalogue_pagination(client: AsyncClient):
+    """Test browsing the 11,621 catalogue with server-side pagination."""
+    res = await client.get("/api/v1/medicine-catalogue?page=1&page_size=10")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 11621
+    assert data["page"] == 1
+    assert data["pageSize"] == 10
+    assert len(data["results"]) == 10
+    assert data["totalPages"] == 1163
+
+
+@pytest.mark.asyncio
+async def test_list_catalogue_dosage_filter(client: AsyncClient):
+    """Test filtering by dosage form (e.g. Tablet, Syrup/Liquid)."""
+    res = await client.get("/api/v1/medicine-catalogue?dosage_form=Tablet&page=1&page_size=5")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] > 0
+    assert len(data["results"]) == 5
+    for item in data["results"]:
+        assert item["dosageForm"] == "Tablet"
+
+
+@pytest.mark.asyncio
+async def test_get_catalogue_categories_facets(client: AsyncClient):
+    """Test catalogue facet statistics and top manufacturers."""
+    res = await client.get("/api/v1/medicine-catalogue/categories")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["totalMedicines"] == 11621
+    assert "dosageForms" in data
+    assert len(data["dosageForms"]) > 0
+    assert "topManufacturers" in data
+    assert len(data["topManufacturers"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_get_single_catalogue_item(client: AsyncClient):
+    """Test fetching a single medicine monograph from the 11,621 dataset."""
+    res = await client.get("/api/v1/medicine-catalogue/1")
+    assert res.status_code == 200
+    item = res.json()
+    assert item["id"] == "1"
+    assert "Augmentin" in item["name"]
+    assert "Amoxycillin" in item["composition"][0]
+    assert item["priceINR"] is not None
+
