@@ -31,7 +31,11 @@ export const connectDB = async () => {
     }
   }
 
-  const uri = process.env.MONGODB_URI || DEFAULT_URI;
+  let uri = (process.env.MONGODB_URI || DEFAULT_URI).trim();
+  // Strip empty appName option that causes Mongoose driver errors
+  if (uri.includes('?appName') && !uri.includes('?appName=')) {
+    uri = uri.replace(/\/?\?appName.*$/, '/?retryWrites=true&w=majority&appName=Cluster0');
+  }
 
   try {
     cachedPromise = mongoose.connect(uri, {

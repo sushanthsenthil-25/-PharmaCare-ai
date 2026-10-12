@@ -23,6 +23,7 @@ import aiRoutes from './routes/aiRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
 import pharmacyRoutes from './routes/pharmacyRoutes.js';
 import ownerRoutes from './routes/ownerRoutes.js';
+import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
 
 // Models for dashboard / alerts compatibility
 import Medicine from './models/Medicine.js';
@@ -278,6 +279,8 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/products', medicineRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/medicine-catalogue', medicineCatalogueRoutes);
+app.use('/api/medicine-catalogue', medicineCatalogueRoutes);
 app.get('/api/v1/dashboard/summary', (req, res) => res.redirect('/api/dashboard/summary'));
 app.get('/api/v1/alerts', (req, res) => res.redirect('/api/alerts'));
 
