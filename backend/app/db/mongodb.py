@@ -1,7 +1,9 @@
 """
 MongoDB connection and Beanie ODM initialisation.
-All Beanie Document models must be listed in `init_db()`.
-"""
+All Beanie Document models must be listed in `init_db()`."""
+import logging
+
+logger = logging.getLogger(__name__)
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie, PydanticObjectId
 from bson.errors import InvalidId
@@ -63,8 +65,8 @@ async def init_db() -> None:
                 ],
             )
             print("[MongoDB] Beanie ODM models initialized successfully.")
-    except Exception as err:
-        print(f"[MongoDB] Notice: Beanie initialization notice (app running in resilient mode): {err}")
+            # pyrefly: ignore [invalid-annotation]
+    except Exception:logger.exception("[MongoDB] Beanie initialization failed")
 
 
 async def close_db() -> None:

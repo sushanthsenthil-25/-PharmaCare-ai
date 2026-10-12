@@ -1,6 +1,7 @@
 from datetime import datetime, date, timezone
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 from beanie import Document, Indexed
 from pydantic import Field
 

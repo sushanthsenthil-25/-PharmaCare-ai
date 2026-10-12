@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     model_config: Dict[str, Any] = {"extra": "ignore", "env_file": ".env", "env_file_encoding": "utf-8"}
 
     # Database (MongoDB)
-    MONGODB_URL: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.p7102kd.mongodb.net/pharmacare?retryWrites=true&w=majority"
-    MONGODB_URI: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.p7102kd.mongodb.net/pharmacare?retryWrites=true&w=majority"
+    MONGODB_URL: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.cmktdy3.mongodb.net/pharmacare?retryWrites=true&w=majority"
+    MONGODB_URI: str = "mongodb+srv://sushanthsenthil:sushanth2005@cluster0.cmktdy3.mongodb.net/pharmacare?retryWrites=true&w=majority"
     MONGODB_DB_NAME: str = "pharmacare"
 
     @property
