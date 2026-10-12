@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { Logo } from '../components/Logo';
 
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
 
@@ -167,9 +168,7 @@ export const LoginPage = () => {
       <div className="flex flex-col gap-6">
         {/* Header Branding */}
         <div className="flex flex-col items-center text-center gap-2 pt-2">
-          <div className="w-14 h-14 rounded-2xl bg-primary-container/20 flex items-center justify-center text-primary shadow-sm border border-primary/20">
-            <span className="material-symbols-outlined text-[32px]">health_and_safety</span>
-          </div>
+          <Logo size={64} showText={false} className="drop-shadow-sm" />
           <h1 className="font-headline-lg text-2xl text-primary font-bold tracking-tight">
             PharmaCare AI Account
           </h1>

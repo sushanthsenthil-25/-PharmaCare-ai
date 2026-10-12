@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { Logo } from './Logo';
 
 export const Header = () => {
   const navigate = useNavigate();
@@ -39,15 +40,10 @@ export const Header = () => {
           {/* Top bar: Brand & Action Icons */}
           <div className="flex items-center justify-between gap-space-sm">
             <div 
-              className="flex items-center gap-space-xs cursor-pointer"
+              className="flex items-center gap-space-xs cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                <span className="material-symbols-outlined text-primary text-[22px]">medication</span>
-              </div>
-              <span className="font-headline-sm text-headline-sm text-primary leading-tight tracking-tight font-bold">
-                PharmaCare <span className="text-secondary font-bold">AI</span>
-              </span>
+              <Logo size={36} variant="horizontal" />
             </div>
 
             <div className="flex items-center gap-space-xs">
