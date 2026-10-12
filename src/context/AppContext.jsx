@@ -200,7 +200,7 @@ export const AppProvider = ({ children }) => {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const hydrateSession = async () => {
-      await checkBackendHealth();
+      checkBackendHealth();
       loadDashboardSummary();
       loadAlerts();
 

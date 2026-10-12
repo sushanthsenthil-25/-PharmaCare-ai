@@ -19,6 +19,7 @@ const API_BASE_URL = getInitialApiUrl();
 class ApiClient {
   constructor() {
     this.baseUrl = API_BASE_URL;
+    this._clientCache = new Map();
   }
 
   // ---------------------------------------------------------------------------
@@ -82,7 +83,7 @@ class ApiClient {
   }
 
   // ---------------------------------------------------------------------------
-  // Core HTTP Request Handler with Automatic Refresh & Error Handling
+  // Core HTTP Request Handler with Automatic Timeout & Error Handling
   // ---------------------------------------------------------------------------
   async request(endpoint, options = {}) {
     const url = this.buildUrl(endpoint);
@@ -96,11 +97,23 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Set 12s timeout controller if no custom signal provided
+    let timeoutId = null;
+    let effectiveSignal = options.signal;
+    if (!effectiveSignal) {
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 12000);
+      effectiveSignal = controller.signal;
+    }
+
     try {
       const response = await fetch(url, {
         ...options,
+        signal: effectiveSignal,
         headers,
       });
+
+      if (timeoutId) clearTimeout(timeoutId);
 
       if (response.status === 204) {
         return null;
@@ -124,6 +137,10 @@ class ApiClient {
 
       return data;
     } catch (err) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw err;
+      }
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
         const netErr = new Error('Unable to connect to PharmaCare AI backend. Please verify your internet connection or backend server.');
         netErr.status = 0;
@@ -134,7 +151,7 @@ class ApiClient {
     }
   }
 
-  async get(endpoint, params = {}) {
+  async get(endpoint, params = {}, options = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, val]) => {
       if (val !== undefined && val !== null && val !== '') {
@@ -142,7 +159,29 @@ class ApiClient {
       }
     });
     const queryString = query.toString() ? `?${query.toString()}` : '';
-    return this.request(`${endpoint}${queryString}`, { method: 'GET' });
+    const fullPath = `${endpoint}${queryString}`;
+
+    // Fast client-side cache for GET queries (e.g. catalogue pages & facets)
+    const cacheKey = `GET:${fullPath}`;
+    if (!options.noCache && this._clientCache) {
+      const entry = this._clientCache.get(cacheKey);
+      if (entry && Date.now() - entry.timestamp < 180000) {
+        return entry.data;
+      }
+    }
+
+    const data = await this.request(fullPath, { method: 'GET', ...options });
+
+    // Store in LRU cache
+    if (this._clientCache && data) {
+      if (this._clientCache.size > 200) {
+        const oldestKey = this._clientCache.keys().next().value;
+        this._clientCache.delete(oldestKey);
+      }
+      this._clientCache.set(cacheKey, { timestamp: Date.now(), data });
+    }
+
+    return data;
   }
 
   async post(endpoint, body = {}) {
@@ -256,19 +295,23 @@ class ApiClient {
 
   // Indian Medicine Catalogue (FastAPI - 11,621 Formulations)
   medicineCatalogue = {
-    search: async (q, params = {}) => {
+    search: async (q, params = {}, options = {}) => {
       const page = typeof params === 'number' ? params : (params.page || 1);
       const pageSize = params.pageSize || params.page_size || 20;
       const sortBy = params.sortBy || params.sort_by || 'name';
-      return await this.get('/api/v1/medicine-catalogue/search', {
-        q,
-        page,
-        page_size: pageSize,
-        sort_by: sortBy,
-      });
+      return await this.get(
+        '/api/v1/medicine-catalogue/search',
+        {
+          q,
+          page,
+          page_size: pageSize,
+          sort_by: sortBy,
+        },
+        options
+      );
     },
 
-    list: async (params = {}) => {
+    list: async (params = {}, options = {}) => {
       const queryParams = {
         page: params.page || 1,
         page_size: params.pageSize || params.page_size || 20,
@@ -280,7 +323,7 @@ class ApiClient {
       if (params.manufacturer) {
         queryParams.manufacturer = params.manufacturer;
       }
-      return await this.get('/api/v1/medicine-catalogue', queryParams);
+      return await this.get('/api/v1/medicine-catalogue', queryParams, options);
     },
 
     getById: async (id) => {

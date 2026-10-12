@@ -73,22 +73,30 @@ export const MedicinesPage = () => {
     try {
       let res;
       const cleanQ = currentQuery.trim();
+      const signal = abortControllerRef.current?.signal;
 
       if (cleanQ.length >= 2) {
         // Debounced search on the 11,621 dataset
-        res = await api.medicineCatalogue.search(cleanQ, {
-          page: currentPage,
-          pageSize,
-          sortBy: currentSort,
-        });
+        res = await api.medicineCatalogue.search(
+          cleanQ,
+          {
+            page: currentPage,
+            pageSize,
+            sortBy: currentSort,
+          },
+          { signal }
+        );
       } else {
         // Browse full 11,621 dataset with server-side pagination & dosage filtering
-        res = await api.medicineCatalogue.list({
-          page: currentPage,
-          pageSize,
-          dosageForm: currentDosage !== 'All' ? currentDosage : undefined,
-          sortBy: currentSort,
-        });
+        res = await api.medicineCatalogue.list(
+          {
+            page: currentPage,
+            pageSize,
+            dosageForm: currentDosage !== 'All' ? currentDosage : undefined,
+            sortBy: currentSort,
+          },
+          { signal }
+        );
       }
 
       const items = res?.results || [];
@@ -175,15 +183,18 @@ export const MedicinesPage = () => {
     }
   };
 
-  // Trigger data fetch on filter/mode/page change with 250ms debounce
+  // Trigger data fetch: 300ms debounce when actively typing search, 0ms instant fetch on page/category changes
   useEffect(() => {
+    const isSearching = Boolean(searchFilter.trim());
+    const delay = isSearching ? 300 : 0;
+
     const timer = setTimeout(() => {
       if (viewMode === 'catalogue') {
         fetchCatalogue(searchFilter, page, selectedDosage, sortBy);
       } else {
         fetchStoreMedicines(storeCategory, searchFilter);
       }
-    }, 250);
+    }, delay);
 
     return () => {
       clearTimeout(timer);
@@ -351,10 +362,25 @@ export const MedicinesPage = () => {
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error state with retry action */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
-          {error}
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-red-600 text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => {
+              if (viewMode === 'catalogue') {
+                fetchCatalogue(searchFilter, page, selectedDosage, sortBy);
+              } else {
+                fetchStoreMedicines(storeCategory, searchFilter);
+              }
+            }}
+            className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-bold transition-all shrink-0"
+          >
+            Retry
+          </button>
         </div>
       )}
 
