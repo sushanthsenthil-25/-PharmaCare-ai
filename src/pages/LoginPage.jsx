@@ -164,12 +164,12 @@ export const LoginPage = () => {
   const currentAvatar = user?.profilePhoto || user?.avatar || DEFAULT_AVATAR;
 
   return (
-    <div className="flex flex-col w-full px-margin pb-12 pt-4 min-h-[80vh] justify-between">
-      <div className="flex flex-col gap-6">
+    <div className="flex flex-col w-full px-margin pb-10 pt-2 gap-4">
+      <div className="flex flex-col gap-4">
         {/* Header Branding */}
-        <div className="flex flex-col items-center text-center gap-2 pt-2">
-          <Logo size={64} showText={false} className="drop-shadow-sm" />
-          <h1 className="font-headline-lg text-2xl text-primary font-bold tracking-tight">
+        <div className="flex flex-col items-center text-center gap-1.5 pt-1">
+          <Logo size={48} showText={false} className="drop-shadow-sm" />
+          <h1 className="font-headline-lg text-xl text-primary font-bold tracking-tight">
             PharmaCare AI Account
           </h1>
           <p className="font-body-sm text-xs text-on-surface-variant max-w-[280px]">
@@ -677,7 +677,7 @@ export const LoginPage = () => {
         )}
       </div>
 
-      <div className="text-center pt-6">
+      <div className="text-center pt-2">
         <p className="font-body-sm text-[11px] text-on-surface-variant">
           By signing in, you agree to PharmaCare AI's{' '}
           <span className="text-primary font-bold underline cursor-pointer">Terms of Service</span> &{' '}

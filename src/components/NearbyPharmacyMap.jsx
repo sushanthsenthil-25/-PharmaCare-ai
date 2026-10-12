@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
@@ -12,8 +12,25 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
   const [medicineAvailability, setMedicineAvailability] = useState(null);
   const [searchingAvailability, setSearchingAvailability] = useState(false);
 
+  const fetchNearbyPharmacies = useCallback(async (lat, lng) => {
+    setLoading(true);
+    try {
+      const res = await api.pharmacies.getNearby({ lat, lng, radius: 20 });
+      if (res?.pharmacies) {
+        setPharmacies(res.pharmacies);
+        if (res.pharmacies.length > 0 && !selectedPharmacy) {
+          setSelectedPharmacy(res.pharmacies[0]);
+        }
+      }
+    } catch (err) {
+      console.error('[Map Error] Failed to fetch nearby pharmacies:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPharmacy]);
+
   // Request browser user location
-  const requestLocation = () => {
+  const requestLocation = useCallback(() => {
     if (navigator.geolocation) {
       setLoading(true);
       navigator.geolocation.getCurrentPosition(
@@ -35,28 +52,11 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
       setLocationPermission('denied');
       fetchNearbyPharmacies(12.9716, 77.5946);
     }
-  };
-
-  const fetchNearbyPharmacies = async (lat, lng) => {
-    setLoading(true);
-    try {
-      const res = await api.pharmacies.getNearby({ lat, lng, radius: 20 });
-      if (res?.pharmacies) {
-        setPharmacies(res.pharmacies);
-        if (res.pharmacies.length > 0 && !selectedPharmacy) {
-          setSelectedPharmacy(res.pharmacies[0]);
-        }
-      }
-    } catch (err) {
-      console.error('[Map Error] Failed to fetch nearby pharmacies:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchNearbyPharmacies]);
 
   useEffect(() => {
     requestLocation();
-  }, []);
+  }, [requestLocation]);
 
   // Fetch medicine availability across pharmacies if selectedMedicine prop is passed
   useEffect(() => {
@@ -102,14 +102,14 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 shadow-sm">
+    <div className="flex flex-col gap-2.5 w-full bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-3 shadow-sm">
       {/* Header & Location Selector */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-xl">distance</span>
+          <span className="material-symbols-outlined text-primary text-lg">distance</span>
           <div>
-            <h3 className="font-bold text-sm text-on-surface">Nearby Pharmacies</h3>
-            <p className="text-[11px] text-on-surface-variant font-medium truncate max-w-[200px]">
+            <h3 className="font-bold text-xs text-on-surface">Nearby Pharmacies</h3>
+            <p className="text-[10px] text-on-surface-variant font-medium truncate max-w-[200px]">
               📍 {locationName}
             </p>
           </div>
@@ -118,7 +118,7 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
         <button
           type="button"
           onClick={requestLocation}
-          className="flex items-center gap-1 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1.5 rounded-lg transition-all"
+          className="flex items-center gap-1 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-all"
         >
           <span className="material-symbols-outlined text-sm">my_location</span>
           Locate Me
@@ -127,7 +127,7 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
 
       {/* Location Denied Warning & Manual Location Search */}
       {locationPermission === 'denied' && (
-        <div className="flex flex-col gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
+        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <span className="material-symbols-outlined text-amber-600 text-sm">location_off</span>
             <span>Location access disabled. Search area manually:</span>
@@ -151,7 +151,7 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
       )}
 
       {/* Map Display Frame */}
-      <div className="relative w-full h-48 rounded-xl overflow-hidden border border-outline-variant/30 bg-slate-900 group">
+      <div className="relative w-full h-36 rounded-xl overflow-hidden border border-outline-variant/30 bg-slate-900 group">
         {/* OpenStreetMap Tile Background Frame */}
         <iframe
           title="Nearby Pharmacies Map"
@@ -160,34 +160,34 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
         />
 
         {/* Floating User Location Badge */}
-        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-surface/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-outline-variant/30 shadow-md text-[10px] font-bold text-primary">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-surface/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-outline-variant/30 shadow-md text-[9px] font-bold text-primary">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           <span>You are here</span>
         </div>
 
         {/* Pharmacy Count Floating Pill */}
-        <div className="absolute top-2 right-2 z-10 bg-slate-900/90 text-white px-2.5 py-1 rounded-full border border-white/10 text-[10px] font-bold shadow-md">
+        <div className="absolute top-2 right-2 z-10 bg-slate-900/90 text-white px-2 py-0.5 rounded-full border border-white/10 text-[9px] font-bold shadow-md">
           {loading ? 'Searching...' : `${pharmacies.length} Pharmacies Nearby`}
         </div>
       </div>
 
       {/* Pharmacy Selection Carousel / List */}
-      <div className="flex flex-col gap-2 mt-1">
-        <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+      <div className="flex flex-col gap-1.5 mt-0.5">
+        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
           Available Medical Stores
         </span>
 
         {loading ? (
-          <div className="flex items-center justify-center p-6 text-xs text-on-surface-variant gap-2">
-            <span className="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+          <div className="flex items-center justify-center p-4 text-xs text-on-surface-variant gap-2">
+            <span className="material-symbols-outlined animate-spin text-primary text-sm">progress_activity</span>
             Finding nearest verified pharmacies...
           </div>
         ) : pharmacies.length === 0 ? (
-          <div className="p-4 text-center text-xs text-on-surface-variant bg-surface-container-low rounded-xl">
+          <div className="p-3 text-center text-xs text-on-surface-variant bg-surface-container-low rounded-xl">
             No pharmacies found in this area. Try searching another location.
           </div>
         ) : (
-          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
             {pharmacies.map((pharmacy) => {
               const isSelected = selectedPharmacy?._id === pharmacy._id || selectedPharmacy?.id === pharmacy._id;
               return (
@@ -258,15 +258,15 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
 
       {/* Medicine Availability Summary if medicine search active */}
       {selectedMedicine && (
-        <div className="mt-2 p-3 rounded-xl bg-primary/10 border border-primary/20 flex flex-col gap-1.5">
+        <div className="mt-1.5 p-2.5 rounded-xl bg-primary/10 border border-primary/20 flex flex-col gap-1">
           <div className="flex items-center justify-between text-xs font-bold text-primary">
-            <span>Availability for: {selectedMedicine.name}</span>
+            <span className="truncate max-w-[200px]">Availability: {selectedMedicine.name}</span>
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px]">
-              IN STOCK NEARBY
+              {searchingAvailability ? 'CHECKING...' : (medicineAvailability?.inStock !== false ? 'IN STOCK NEARBY' : 'LIMITED STOCK')}
             </span>
           </div>
           <p className="text-[11px] text-on-surface-variant font-medium">
-            Available at {pharmacies.length} nearby verified pharmacies starting from ₹{selectedMedicine.price}.
+            {medicineAvailability?.summary || `Available at ${pharmacies.length} nearby verified pharmacies starting from ₹${selectedMedicine.price}.`}
           </p>
         </div>
       )}

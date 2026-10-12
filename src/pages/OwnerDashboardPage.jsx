@@ -5,7 +5,7 @@ import api from '../services/api';
 
 export function OwnerDashboardPage() {
   const navigate = useNavigate();
-  const { user, updateUser } = useApp();
+  const { user } = useApp();
   const userRole = (user?.role || '').toUpperCase();
   const isOwnerRole = userRole === 'OWNER' || userRole === 'PHARMACIST' || userRole === 'ADMIN';
 
@@ -244,15 +244,15 @@ export function OwnerDashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 px-4 py-2 pb-24 w-full">
+    <div className="flex flex-col gap-4 px-4 py-2 pb-12 w-full">
       {/* Top Banner & Header */}
-      <div className="flex flex-col gap-1 bg-gradient-to-r from-amber-600/20 via-primary/15 to-emerald-600/10 p-4 rounded-2xl border border-amber-500/20 shadow-sm">
+      <div className="flex flex-col gap-1 bg-gradient-to-r from-amber-600/20 via-primary/15 to-emerald-600/10 p-3.5 rounded-2xl border border-amber-500/20 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-amber-500 text-2xl">local_pharmacy</span>
             <div>
-              <h1 className="font-bold text-lg text-on-surface">Pharmacy Owner Dashboard</h1>
-              <p className="text-xs text-on-surface-variant font-medium">
+              <h1 className="font-bold text-base text-on-surface">Pharmacy Owner Dashboard</h1>
+              <p className="text-[11px] text-on-surface-variant font-medium">
                 {pharmacy?.businessName || 'PharmaCare Central Pharmacy'} • Indiranagar
               </p>
             </div>
@@ -265,7 +265,7 @@ export function OwnerDashboardPage() {
 
       {/* Success Notification Alert */}
       {successMsg && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold animate-fade-in">
           <span className="material-symbols-outlined text-sm">check_circle</span>
           <span>{successMsg}</span>
         </div>
@@ -273,7 +273,7 @@ export function OwnerDashboardPage() {
 
       {/* Error Alert */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold">
           <span className="material-symbols-outlined text-sm">error</span>
           <span>{error}</span>
         </div>
@@ -291,7 +291,7 @@ export function OwnerDashboardPage() {
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === tab.id
                 ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/15'
                 : 'text-on-surface-variant hover:text-on-surface'
@@ -303,12 +303,20 @@ export function OwnerDashboardPage() {
         ))}
       </div>
 
+      {/* Loading Skeleton */}
+      {loading && medicines.length === 0 && orders.length === 0 && (
+        <div className="flex items-center justify-center p-8 text-xs text-on-surface-variant gap-2">
+          <span className="material-symbols-outlined animate-spin text-primary text-base">progress_activity</span>
+          <span>Loading verified pharmacy statistics...</span>
+        </div>
+      )}
+
       {/* TAB 1: OVERVIEW STATS */}
       {activeTab === 'overview' && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* Action Header */}
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-sm text-on-surface">Real-Time Pharmacy Metrics</h2>
+            <h2 className="font-bold text-xs text-on-surface">Real-Time Pharmacy Metrics</h2>
             <button
               type="button"
               onClick={() => {

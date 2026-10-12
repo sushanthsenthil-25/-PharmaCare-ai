@@ -324,55 +324,43 @@ export const AppProvider = ({ children }) => {
   };
 
   const uploadProfilePhoto = async (dataUrl) => {
-    try {
-      const res = await api.auth.uploadPhoto(dataUrl);
-      if (res && res.user) {
-        const photo = res.user.profilePhoto || res.user.avatar;
-        setUser((prev) => ({
-          ...prev,
-          avatar: photo,
-          profilePhoto: photo,
-        }));
-      }
-      return res;
-    } catch (err) {
-      throw err;
+    const res = await api.auth.uploadPhoto(dataUrl);
+    if (res && res.user) {
+      const photo = res.user.profilePhoto || res.user.avatar;
+      setUser((prev) => ({
+        ...prev,
+        avatar: photo,
+        profilePhoto: photo,
+      }));
     }
+    return res;
   };
 
   const removeProfilePhoto = async () => {
-    try {
-      const res = await api.auth.removePhoto();
-      if (res && res.user) {
-        const photo = res.user.profilePhoto || res.user.avatar || DEFAULT_AVATAR;
-        setUser((prev) => ({
-          ...prev,
-          avatar: photo,
-          profilePhoto: photo,
-        }));
-      }
-      return res;
-    } catch (err) {
-      throw err;
+    const res = await api.auth.removePhoto();
+    if (res && res.user) {
+      const photo = res.user.profilePhoto || res.user.avatar || DEFAULT_AVATAR;
+      setUser((prev) => ({
+        ...prev,
+        avatar: photo,
+        profilePhoto: photo,
+      }));
     }
+    return res;
   };
 
   const updateProfile = async (profileData) => {
-    try {
-      const res = await api.auth.updateProfile(profileData);
-      if (res && res.user) {
-        setUser((prev) => ({
-          ...prev,
-          name: res.user.name || prev.name,
-          businessName: res.user.businessName || prev.businessName,
-          phone: res.user.phone || prev.phone,
-          address: res.user.address || prev.address,
-        }));
-      }
-      return res;
-    } catch (err) {
-      throw err;
+    const res = await api.auth.updateProfile(profileData);
+    if (res && res.user) {
+      setUser((prev) => ({
+        ...prev,
+        name: res.user.name || prev.name,
+        businessName: res.user.businessName || prev.businessName,
+        phone: res.user.phone || prev.phone,
+        address: res.user.address || prev.address,
+      }));
     }
+    return res;
   };
 
   const markAlertRead = async (alertId) => {
@@ -511,8 +499,7 @@ export const AppProvider = ({ children }) => {
   const checkoutOrder = async (orderPayload = {}) => {
     if (cart.length === 0) return null;
 
-    try {
-      const items = cart.map((item) => ({
+    const items = cart.map((item) => ({
         productId: item.productId || item.rawId || item.id || item._id,
         name: item.name,
         qty: item.qty,
@@ -550,12 +537,9 @@ export const AppProvider = ({ children }) => {
         trackingEvents: created.trackingEvents || [],
       });
 
-      clearCart();
-      await loadDashboardSummary();
-      return created;
-    } catch (err) {
-      throw err;
-    }
+    clearCart();
+    await loadDashboardSummary();
+    return created;
   };
 
   return (

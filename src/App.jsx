@@ -24,7 +24,7 @@ export function App() {
             <Header />
             
             {/* Scrollable Main Area */}
-            <main className="flex-1 w-full pt-32 pb-20">
+            <main className="flex-1 w-full pt-[96px] pb-16">
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />

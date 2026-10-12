@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Logo } from './Logo';
 
 export const Header = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { cart, user, location: userLoc, alerts, unreadAlertsCount, markAlertRead, setAiState, backendHealth, checkBackendHealth, openCart } = useApp();
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
@@ -35,15 +34,15 @@ export const Header = () => {
         </div>
       )}
 
-      <header className={`fixed top-0 left-0 right-0 z-50 pt-safe bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] max-w-md mx-auto ${backendHealth && !backendHealth.connected ? 'mt-6' : ''}`}>
-        <div className="h-28 px-margin flex flex-col justify-between py-space-sm">
+      <header className={`fixed top-0 left-0 right-0 z-50 pt-safe bg-surface-container-lowest/95 backdrop-blur-xl shadow-[0_1px_6px_rgba(0,0,0,0.04)] max-w-md mx-auto ${backendHealth && !backendHealth.connected ? 'mt-6' : ''}`}>
+        <div className="h-[88px] px-3.5 flex flex-col justify-between py-2">
           {/* Top bar: Brand & Action Icons */}
-          <div className="flex items-center justify-between gap-space-sm">
+          <div className="flex items-center justify-between gap-2">
             <div 
-              className="flex items-center gap-space-xs cursor-pointer group"
+              className="flex items-center gap-1.5 cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <Logo size={36} variant="horizontal" />
+              <Logo size={32} variant="horizontal" />
             </div>
 
             <div className="flex items-center gap-space-xs">

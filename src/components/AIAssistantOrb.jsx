@@ -328,7 +328,7 @@ export const AIAssistantOrb = () => {
   };
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-4 shadow-sm flex flex-col gap-4 border border-outline-variant/10" aria-label="JARVIS AI Assistant">
+    <section className="relative overflow-hidden rounded-2xl bg-surface-container-lowest p-3.5 shadow-sm flex flex-col gap-3 border border-outline-variant/10" aria-label="JARVIS AI Assistant">
       {/* Ambient Backdrop Accent */}
       <div 
         className="absolute -top-16 -right-16 w-44 h-44 rounded-full blur-3xl pointer-events-none opacity-40" 
@@ -339,17 +339,17 @@ export const AIAssistantOrb = () => {
         style={{ backgroundColor: 'rgba(104, 87, 219, 0.2)' }}
       ></div>
 
-      <div className="flex flex-col items-center text-center gap-1 relative z-10">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant/20">
-          <span className="material-symbols-outlined text-secondary text-[14px]">smart_toy</span>
-          <span className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase font-semibold text-[10px]">
+      <div className="flex flex-col items-center text-center gap-0.5 relative z-10">
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-low border border-outline-variant/20">
+          <span className="material-symbols-outlined text-secondary text-[13px]">smart_toy</span>
+          <span className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase font-semibold text-[9px]">
             JARVIS • AI ASSISTANT
           </span>
         </div>
-        <h2 className="font-headline-sm text-headline-sm text-primary font-bold mt-1">
+        <h2 className="font-headline-sm text-base text-primary font-bold mt-0.5">
           JARVIS
         </h2>
-        <p className="font-body-sm text-body-sm text-on-surface-variant max-w-[290px]">
+        <p className="font-body-sm text-[11px] text-on-surface-variant max-w-[290px]">
           Ask in English, தமிழ் (Tamil), or Tanglish
         </p>
       </div>
@@ -374,7 +374,7 @@ export const AIAssistantOrb = () => {
                   setAiState(st.id);
                 }
               }}
-              className={`flex-1 py-1.5 px-2 rounded-lg font-label-sm text-label-sm font-semibold transition-all flex items-center justify-center gap-1.5 text-[11px] ${
+              className={`flex-1 py-1 px-1.5 rounded-lg font-label-sm text-label-sm font-semibold transition-all flex items-center justify-center gap-1 text-[10px] ${
                 isActive
                   ? 'bg-surface-container-lowest text-primary shadow-sm ring-1 ring-primary/10'
                   : 'text-on-surface-variant hover:text-primary'
@@ -389,8 +389,8 @@ export const AIAssistantOrb = () => {
 
       {/* Microphone Permission Warning Banner */}
       {micPermissionError && (
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-start gap-2 relative z-10">
-          <span className="material-symbols-outlined text-[18px] text-amber-700 shrink-0 mt-0.5">warning</span>
+        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-start gap-2 relative z-10">
+          <span className="material-symbols-outlined text-[16px] text-amber-700 shrink-0 mt-0.5">warning</span>
           <div className="flex-1">
             <span className="font-bold block">Microphone Access Notice</span>
             <span>{micPermissionError}</span>
@@ -406,10 +406,10 @@ export const AIAssistantOrb = () => {
       )}
 
       {/* Center AI Glowing Orb Experience */}
-      <div className="relative flex flex-col items-center justify-center py-4 z-10">
+      <div className="relative flex flex-col items-center justify-center py-2 z-10">
         {/* Rotating Dash Ring SVG */}
         <svg 
-          className={`absolute w-44 h-44 ${aiState === 'thinking' ? 'animate-[spin_4s_linear_infinite]' : 'animate-[spin_16s_linear_infinite]'}`}
+          className={`absolute w-36 h-36 ${aiState === 'thinking' ? 'animate-[spin_4s_linear_infinite]' : 'animate-[spin_16s_linear_infinite]'}`}
           style={{ color: aiState === 'listening' ? 'rgba(16, 185, 129, 0.4)' : aiState === 'speaking' ? 'rgba(168, 85, 247, 0.4)' : 'rgba(84, 68, 202, 0.3)' }} 
           viewBox="0 0 100 100"
         >
@@ -418,13 +418,13 @@ export const AIAssistantOrb = () => {
 
         {/* Outer Pulsing Halo */}
         <div 
-          className={`absolute w-36 h-36 rounded-full opacity-30 ${aiState === 'listening' || aiState === 'speaking' ? 'animate-ping' : 'animate-pulse'}`}
+          className={`absolute w-30 h-30 rounded-full opacity-30 ${aiState === 'listening' || aiState === 'speaking' ? 'animate-ping' : 'animate-pulse'}`}
           style={{ backgroundColor: aiState === 'listening' ? 'rgba(16, 185, 129, 0.35)' : aiState === 'speaking' ? 'rgba(168, 85, 247, 0.35)' : 'rgba(84, 68, 202, 0.35)' }}
         ></div>
 
         {/* Center Main Gradient Orb with Tap/Interrupt Action */}
         <div 
-          className="relative w-28 h-28 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(84,68,202,0.45)] cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          className="relative w-24 h-24 rounded-full flex items-center justify-center shadow-[0_6px_24px_rgba(84,68,202,0.4)] cursor-pointer transition-transform hover:scale-105 active:scale-95"
           onClick={handleOrbClick}
           role="button"
           tabIndex={0}
@@ -438,20 +438,20 @@ export const AIAssistantOrb = () => {
               : 'radial-gradient(circle at 35% 30%, rgb(139, 125, 248) 0%, rgb(104, 87, 219) 35%, rgb(84, 68, 202) 65%, rgb(53, 38, 151) 100%)'
           }}
         >
-          <div className="w-20 h-20 rounded-full bg-gradient-to-b from-surface-container-lowest/20 to-transparent flex items-center justify-center backdrop-blur-sm">
-            <span className="material-symbols-outlined text-surface-container-lowest text-[38px]">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-b from-surface-container-lowest/20 to-transparent flex items-center justify-center backdrop-blur-sm">
+            <span className="material-symbols-outlined text-surface-container-lowest text-[32px]">
               {aiState === 'listening' ? 'mic' : aiState === 'thinking' ? 'psychology' : aiState === 'speaking' ? 'volume_up' : 'graphic_eq'}
             </span>
           </div>
         </div>
 
         {/* Realtime Dynamic Voice Frequency Visualizer Bars */}
-        <div className="flex items-end justify-center gap-1.5 h-6 mt-4" aria-hidden="true">
+        <div className="flex items-end justify-center gap-1.5 h-5 mt-2.5" aria-hidden="true">
           <span className={`w-1 rounded-full h-2 ${aiState !== 'ready' ? 'animate-bounce' : ''}`} style={{ backgroundColor: '#7b6ee6' }}></span>
-          <span className={`w-1 rounded-full h-5 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.2s]' : ''}`} style={{ backgroundColor: '#5444ca' }}></span>
-          <span className={`w-1 rounded-full h-3 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.4s]' : ''}`} style={{ backgroundColor: '#3b2e96' }}></span>
-          <span className={`w-1 rounded-full h-6 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.1s]' : ''}`} style={{ backgroundColor: '#a296ff' }}></span>
-          <span className={`w-1 rounded-full h-4 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.3s]' : ''}`} style={{ backgroundColor: '#5444ca' }}></span>
+          <span className={`w-1 rounded-full h-4 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.2s]' : ''}`} style={{ backgroundColor: '#5444ca' }}></span>
+          <span className={`w-1 rounded-full h-2.5 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.4s]' : ''}`} style={{ backgroundColor: '#3b2e96' }}></span>
+          <span className={`w-1 rounded-full h-5 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.1s]' : ''}`} style={{ backgroundColor: '#a296ff' }}></span>
+          <span className={`w-1 rounded-full h-3 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.3s]' : ''}`} style={{ backgroundColor: '#5444ca' }}></span>
           <span className={`w-1 rounded-full h-2 ${aiState !== 'ready' ? 'animate-bounce [animation-delay:-0.5s]' : ''}`} style={{ backgroundColor: '#7b6ee6' }}></span>
         </div>
 

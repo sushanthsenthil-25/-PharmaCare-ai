@@ -91,23 +91,24 @@ export const ProductDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col w-full px-margin pb-24 gap-y-4 pt-4">
-        <div className="h-64 bg-surface-container-low rounded-2xl animate-pulse"></div>
-        <div className="h-20 bg-surface-container-low rounded-xl animate-pulse"></div>
+      <div className="flex flex-col w-full px-margin pb-16 gap-y-3 pt-2">
+        <div className="h-60 bg-surface-container-low rounded-2xl animate-pulse"></div>
+        <div className="h-16 bg-surface-container-low rounded-xl animate-pulse"></div>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="p-8 text-center text-xs text-on-surface-variant">
-        Product not found. <button onClick={() => navigate('/medicines')} className="text-primary font-bold underline">Return to Medicines</button>
+      <div className="p-8 text-center text-xs text-on-surface-variant flex flex-col items-center gap-2">
+        <span>{error || 'Product not found.'}</span>
+        <button onClick={() => navigate('/medicines')} className="text-primary font-bold underline">Return to Medicines</button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col w-full px-margin pb-28 gap-y-4 pt-2">
+    <div className="flex flex-col w-full px-margin pb-20 gap-y-3 pt-1">
       {/* Top Bar with back button */}
       <div className="flex items-center justify-between">
         <button

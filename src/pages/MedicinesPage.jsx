@@ -222,14 +222,14 @@ export const MedicinesPage = () => {
   };
 
   return (
-    <div className="flex flex-col w-full px-margin pb-16 gap-y-4">
+    <div className="flex flex-col w-full px-margin pb-8 gap-y-3">
       {/* Page Header */}
-      <div className="flex flex-col gap-1 pt-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h1 className="font-headline-md text-xl text-primary font-bold">
+      <div className="flex flex-col gap-0.5 pt-1">
+        <div className="flex items-center justify-between flex-wrap gap-1.5">
+          <h1 className="font-headline-md text-lg text-primary font-bold">
             Medicines & Clinical Formulations
           </h1>
-          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
             {viewMode === 'catalogue' ? '11,621 National Records' : '25 Express Delivery Items'}
           </span>
         </div>
@@ -242,7 +242,7 @@ export const MedicinesPage = () => {
       <div className="grid grid-cols-2 p-1 bg-surface-container-low rounded-xl border border-outline-variant/15">
         <button
           onClick={() => handleModeSwitch('catalogue')}
-          className={`py-2 px-3 rounded-lg font-label-sm text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`py-1.5 px-2.5 rounded-lg font-label-sm text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
             viewMode === 'catalogue'
               ? 'bg-white text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-primary'
@@ -253,7 +253,7 @@ export const MedicinesPage = () => {
         </button>
         <button
           onClick={() => handleModeSwitch('store')}
-          className={`py-2 px-3 rounded-lg font-label-sm text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`py-1.5 px-2.5 rounded-lg font-label-sm text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
             viewMode === 'store'
               ? 'bg-white text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-primary'
@@ -266,7 +266,7 @@ export const MedicinesPage = () => {
 
       {/* Filter Row 1: Dosage Form Filter (Catalogue) OR Category Filter (Store) */}
       {viewMode === 'catalogue' ? (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {dosageFilters.map((df) => (
             <button
               key={df.id}
@@ -274,7 +274,7 @@ export const MedicinesPage = () => {
                 setSelectedDosage(df.id);
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-full font-label-sm text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-2.5 py-1 rounded-full font-label-sm text-[11px] font-semibold whitespace-nowrap transition-all ${
                 selectedDosage === df.id
                   ? 'bg-primary text-on-primary shadow-sm'
                   : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
@@ -285,12 +285,12 @@ export const MedicinesPage = () => {
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {storeCategories.map((cat) => (
             <button
               key={cat}
               onClick={() => setStoreCategory(cat)}
-              className={`px-3 py-1.5 rounded-full font-label-sm text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-2.5 py-1 rounded-full font-label-sm text-[11px] font-semibold whitespace-nowrap transition-all ${
                 storeCategory === cat
                   ? 'bg-primary text-on-primary shadow-sm'
                   : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
@@ -305,7 +305,7 @@ export const MedicinesPage = () => {
       {/* Search Input & Sort Selector */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-[18px]">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-2 text-on-surface-variant text-[18px]">search</span>
           <input
             type="text"
             value={searchFilter}
@@ -318,7 +318,7 @@ export const MedicinesPage = () => {
                 ? 'Search 11,621 formulations (e.g. Paracetamol, Augmentin, Dolo)...'
                 : 'Search store inventory by medicine, brand, active salt...'
             }
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
@@ -329,7 +329,7 @@ export const MedicinesPage = () => {
               setSortBy(e.target.value);
               setPage(1);
             }}
-            className="py-2.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+            className="py-2 px-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="name">Name (A-Z)</option>
             <option value="price_asc">Price: Low to High</option>
@@ -340,11 +340,11 @@ export const MedicinesPage = () => {
 
       {/* Dataset Reassurance Banner */}
       {viewMode === 'catalogue' && (
-        <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200/60 flex items-center justify-between text-xs text-blue-900">
+        <div className="p-2.5 px-3 rounded-xl bg-blue-50/70 border border-blue-200/60 flex items-center justify-between text-xs text-blue-900">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-blue-600 text-[18px]">verified</span>
-            <span>
-              Showing {products.length} of <strong>{totalCount.toLocaleString()}</strong> authentic formulations
+            <span className="material-symbols-outlined text-blue-600 text-[17px]">verified</span>
+            <span className="text-[11px]">
+              Showing {products.length} of <strong>{totalCount.toLocaleString()}</strong> formulations
             </span>
           </div>
           <span className="text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
@@ -355,16 +355,16 @@ export const MedicinesPage = () => {
 
       {/* Loading Skeleton matching real card height */}
       {loading && products.length === 0 && (
-        <div className="flex flex-col gap-3 py-2">
+        <div className="flex flex-col gap-2.5 py-1">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-surface-container-low rounded-2xl animate-pulse"></div>
+            <div key={i} className="h-28 bg-surface-container-low rounded-2xl animate-pulse"></div>
           ))}
         </div>
       )}
 
       {/* Error state with retry action */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between gap-3">
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-red-600 text-[18px]">error</span>
             <span>{error}</span>
@@ -385,29 +385,29 @@ export const MedicinesPage = () => {
       )}
 
       {/* Products & Formulations List */}
-      <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-2.5">
         {products.map((item) => (
           <div
             key={item.id}
-            className={`p-4 rounded-2xl bg-surface-container-lowest border shadow-sm flex flex-col gap-3 transition-all hover:border-primary/30 ${
+            className={`p-3 rounded-xl bg-surface-container-lowest border shadow-sm flex flex-col gap-2 transition-all hover:border-primary/30 ${
               item.isExpired ? 'border-red-300 bg-red-50/20' : 'border-outline-variant/15'
             }`}
           >
-            <div className="flex gap-3">
+            <div className="flex gap-2.5">
               <img
                 src={item.img}
                 alt={item.name}
-                width="80"
-                height="80"
+                width="68"
+                height="68"
                 loading="lazy"
                 onError={(e) => handleImageError(e, item.dosageForm)}
                 onClick={() => navigate(`/product/${item.id}`)}
-                className="w-20 h-20 rounded-xl object-contain bg-surface-container-low cursor-pointer shrink-0 border border-outline-variant/10 p-1"
+                className="w-[68px] h-[68px] rounded-lg object-contain bg-surface-container-low cursor-pointer shrink-0 border border-outline-variant/10 p-1"
               />
               <div className="flex flex-col justify-between flex-1 min-w-0">
                 <div>
                   <div className="flex items-center justify-between gap-1 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/5 px-2 py-0.5 rounded">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-primary bg-primary/5 px-1.5 py-0.5 rounded">
                       {item.dosageForm || 'Clinical Formulation'}
                     </span>
                     {item.isLiveInventory && getExpiryBadge(item)}
@@ -419,7 +419,7 @@ export const MedicinesPage = () => {
                   </div>
                   <h3
                     onClick={() => navigate(`/product/${item.id}`)}
-                    className="font-headline-sm text-sm font-bold text-primary hover:underline cursor-pointer mt-1 truncate"
+                    className="font-headline-sm text-sm font-bold text-primary hover:underline cursor-pointer mt-0.5 truncate"
                   >
                     {item.name}
                   </h3>
@@ -440,17 +440,17 @@ export const MedicinesPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10">
+            <div className="flex items-center justify-between pt-1.5 border-t border-outline-variant/10">
               <div className="flex items-baseline gap-1.5">
                 {item.priceINR !== undefined && item.priceINR !== null ? (
                   <>
-                    <span className="font-headline-sm text-base font-bold text-primary">₹{item.priceINR}</span>
+                    <span className="font-headline-sm text-sm font-bold text-primary">₹{item.priceINR}</span>
                     <span className="text-[10px] text-on-surface-variant">Indicative MRP</span>
                   </>
                 ) : item.price !== undefined ? (
                   <>
-                    <span className="font-headline-sm text-base font-bold text-primary">₹{item.price}</span>
-                    <span className="text-xs line-through text-on-surface-variant">₹{item.originalPrice}</span>
+                    <span className="font-headline-sm text-sm font-bold text-primary">₹{item.price}</span>
+                    <span className="text-[11px] line-through text-on-surface-variant">₹{item.originalPrice}</span>
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">
                       {item.discount}
                     </span>
@@ -460,10 +460,10 @@ export const MedicinesPage = () => {
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => navigate(`/product/${item.id}`)}
-                  className="px-3 py-1.5 rounded-lg bg-surface-container-low text-xs font-semibold text-primary hover:bg-surface-container transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-surface-container-low text-[11px] font-semibold text-primary hover:bg-surface-container transition-colors"
                 >
                   Clinical Monograph
                 </button>
@@ -472,16 +472,16 @@ export const MedicinesPage = () => {
                   <button
                     onClick={() => addToCart(item)}
                     disabled={item.isExpired || item.stock <= 0}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 ${
                       item.isExpired || item.stock <= 0
                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                         : 'bg-primary text-on-primary hover:bg-primary/90'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[15px]">
+                    <span className="material-symbols-outlined text-[14px]">
                       {item.isExpired ? 'block' : 'add_shopping_cart'}
                     </span>
-                    {item.isExpired ? 'Expired' : 'Add to Cart'}
+                    {item.isExpired ? 'Expired' : 'Add'}
                   </button>
                 )}
               </div>
@@ -490,7 +490,7 @@ export const MedicinesPage = () => {
         ))}
 
         {!loading && products.length === 0 && (
-          <div className="p-8 text-center text-xs text-on-surface-variant bg-surface-container-low/50 rounded-2xl">
+          <div className="p-6 text-center text-xs text-on-surface-variant bg-surface-container-low/50 rounded-xl">
             No formulations match your search criteria. Try a different medicine name or dosage form.
           </div>
         )}
@@ -498,17 +498,17 @@ export const MedicinesPage = () => {
 
       {/* Pagination Controls for 11,621 Catalogue */}
       {viewMode === 'catalogue' && totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 pb-8 border-t border-outline-variant/15">
+        <div className="flex items-center justify-between pt-3 pb-3 border-t border-outline-variant/15">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || loading}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
               page <= 1 || loading
                 ? 'bg-surface-container-low text-slate-400 cursor-not-allowed'
                 : 'bg-primary text-on-primary hover:bg-primary/90 shadow-sm'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+            <span className="material-symbols-outlined text-[15px]">chevron_left</span>
             Previous
           </button>
 
@@ -519,14 +519,14 @@ export const MedicinesPage = () => {
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || loading}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
               page >= totalPages || loading
                 ? 'bg-surface-container-low text-slate-400 cursor-not-allowed'
                 : 'bg-primary text-on-primary hover:bg-primary/90 shadow-sm'
             }`}
           >
             Next
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            <span className="material-symbols-outlined text-[15px]">chevron_right</span>
           </button>
         </div>
       )}

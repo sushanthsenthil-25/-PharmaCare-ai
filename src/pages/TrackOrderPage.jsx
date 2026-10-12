@@ -67,7 +67,7 @@ export const TrackOrderPage = () => {
       isMounted = false;
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [activeId, orderData?.status]);
+  }, [activeId, orderData?.id, orderData?.orderNumber, orderData?.status]);
 
   const handleSearchOrder = async (e) => {
     e.preventDefault();
@@ -79,7 +79,7 @@ export const TrackOrderPage = () => {
       if (!res) {
         setSearchError(`Order "${searchOrderId}" not found.`);
       }
-    } catch (err) {
+    } catch {
       setSearchError(`Order "${searchOrderId}" not found.`);
     } finally {
       setLoading(false);
@@ -90,7 +90,6 @@ export const TrackOrderPage = () => {
   const progressIdx = STATUS_PROGRESS[currentStatus] ?? 2;
   const orderIdDisplay = orderData?.orderNumber || orderData?.orderId || orderData?.id || activeOrder.orderNumber || activeOrder.id;
   const etaText = orderData?.estimatedDeliveryText || activeOrder.estimatedDeliveryText || 'Today, 30–45 mins';
-  const etaMinutes = orderData?.etaMinutes || orderData?.eta_minutes || activeOrder.etaMinutes || 30;
   const riderName = orderData?.riderName || orderData?.rider_name || activeOrder.riderName || 'Vikram Singh';
   const riderPhone = orderData?.riderPhone || orderData?.rider_phone || activeOrder.riderPhone || '+91 98765 43210';
   const deliveryAddress = orderData?.shippingAddress || orderData?.delivery_address || 'Indiranagar 100ft Rd, Bangalore 560038';
@@ -112,25 +111,25 @@ export const TrackOrderPage = () => {
   const displayItems = orderData?.items?.length ? orderData.items : (activeOrder.items?.length ? activeOrder.items : cart);
 
   return (
-    <div className="flex flex-col w-full px-margin pb-20 gap-y-4 pt-2">
+    <div className="flex flex-col w-full px-margin pb-10 gap-y-3 pt-1">
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/')}
-          className="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-primary hover:bg-surface-container transition-colors"
+          className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary hover:bg-surface-container transition-colors"
         >
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
-        <h1 className="font-headline-sm text-base font-bold text-primary">Live Express Order Tracking</h1>
+        <h1 className="font-headline-sm text-sm font-bold text-primary">Live Express Order Tracking</h1>
         <button 
           aria-label="Refresh Order"
           onClick={() => {
             loadActiveOrder();
             fetchTracking(orderIdDisplay);
           }}
-          className="w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center text-primary hover:bg-surface-container"
+          className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary hover:bg-surface-container"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          <span className="material-symbols-outlined text-[17px]">refresh</span>
         </button>
       </div>
 
@@ -145,9 +144,11 @@ export const TrackOrderPage = () => {
         />
         <button
           type="submit"
-          className="px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-sm"
+          disabled={loading}
+          className="px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-sm disabled:opacity-50 flex items-center gap-1"
         >
-          Track
+          {loading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>}
+          <span>{loading ? 'Tracking...' : 'Track'}</span>
         </button>
       </form>
 
@@ -158,26 +159,26 @@ export const TrackOrderPage = () => {
       )}
 
       {/* Express ETA Hero Banner */}
-      <div className="p-5 rounded-3xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-3">
+      <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <span className="px-2.5 py-1 rounded-full bg-surface-container-lowest/30 backdrop-blur-sm font-label-sm text-[11px] font-bold tracking-wider uppercase">
+          <span className="px-2.5 py-0.5 rounded-full bg-surface-container-lowest/30 backdrop-blur-sm font-label-sm text-[10px] font-bold tracking-wider uppercase">
             30-Min Express Delivery
           </span>
           <span className="font-mono text-xs font-bold text-primary">ID: {orderIdDisplay}</span>
         </div>
 
-        <div className="flex flex-col gap-1 my-1">
-          <span className="text-xs opacity-90 font-medium">Estimated Arrival Window</span>
-          <h2 className="font-headline-lg text-2xl font-extrabold tracking-tight">
+        <div className="flex flex-col gap-0.5 my-0.5">
+          <span className="text-[11px] opacity-90 font-medium">Estimated Arrival Window</span>
+          <h2 className="font-headline-lg text-xl font-extrabold tracking-tight">
             {currentStatus === 'DELIVERED' ? 'Delivered' : etaText}
           </h2>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-1.5 mt-0.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
             <span className="text-xs font-bold text-primary">Status: {currentStatus.replace(/_/g, ' ')}</span>
           </div>
         </div>
 
-        <div className="w-full bg-surface-container-lowest/30 rounded-full h-2 overflow-hidden">
+        <div className="w-full bg-surface-container-lowest/30 rounded-full h-1.5 overflow-hidden">
           <div 
             className="bg-primary h-full rounded-full transition-all duration-500" 
             style={{ width: `${Math.min(100, Math.max(16, progressIdx * 16.6))}%` }}
@@ -185,49 +186,49 @@ export const TrackOrderPage = () => {
         </div>
       </div>
 
-      {/* Driver Location Info (Accurate Non-hallucinated status) */}
-      <div className="p-3.5 rounded-2xl bg-surface-container-low/40 border border-outline-variant/15 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
-          <span className="material-symbols-outlined text-[20px]">explore</span>
+      {/* Driver Location Info */}
+      <div className="p-3 rounded-xl bg-surface-container-low/40 border border-outline-variant/15 flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
+          <span className="material-symbols-outlined text-[18px]">explore</span>
         </div>
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-[10px] uppercase font-bold text-on-surface-variant">Live Driver GPS</span>
+          <span className="text-[9px] uppercase font-bold text-on-surface-variant">Live Driver GPS</span>
           <span className="text-xs font-semibold text-primary truncate">{currentLocation}</span>
         </div>
       </div>
 
       {/* Rider Contact Card */}
-      <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-[24px]">moped</span>
+      <div className="p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <span className="material-symbols-outlined text-[20px]">moped</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold text-secondary uppercase">Express Delivery Partner</span>
-            <h4 className="font-headline-sm text-sm font-bold text-primary">{riderName}</h4>
-            <span className="text-xs text-on-surface-variant truncate max-w-[190px]">To: {deliveryAddress}</span>
+            <span className="text-[10px] font-bold text-secondary uppercase">Express Delivery Partner</span>
+            <h4 className="font-headline-sm text-xs font-bold text-primary">{riderName}</h4>
+            <span className="text-[11px] text-on-surface-variant truncate max-w-[190px]">To: {deliveryAddress}</span>
           </div>
         </div>
         <a
           href={`tel:${riderPhone}`}
-          className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm hover:bg-primary/90 transition-all"
+          className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm hover:bg-primary/90 transition-all"
         >
-          <span className="material-symbols-outlined text-[20px]">call</span>
+          <span className="material-symbols-outlined text-[18px]">call</span>
         </a>
       </div>
 
       {/* Order Progress Timeline */}
-      <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-4">
-        <h3 className="font-headline-sm text-sm font-bold text-primary border-b border-outline-variant/10 pb-2">
+      <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3">
+        <h3 className="font-headline-sm text-xs font-bold text-primary border-b border-outline-variant/10 pb-1.5">
           Fulfillment Timeline
         </h3>
 
-        <div className="flex flex-col gap-4 relative pl-2">
+        <div className="flex flex-col gap-3 relative pl-1">
           {steps.map((step, idx) => (
-            <div key={idx} className="flex gap-4 items-start relative">
+            <div key={idx} className="flex gap-3 items-start relative">
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-10 transition-all ${
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold z-10 transition-all ${
                     step.completed
                       ? 'bg-emerald-500 text-white'
                       : step.current
@@ -236,14 +237,14 @@ export const TrackOrderPage = () => {
                   }`}
                 >
                   {step.completed ? (
-                    <span className="material-symbols-outlined text-[14px]">check</span>
+                    <span className="material-symbols-outlined text-[12px]">check</span>
                   ) : (
                     idx + 1
                   )}
                 </div>
                 {idx < steps.length - 1 && (
                   <div
-                    className={`w-0.5 h-8 my-1 ${
+                    className={`w-0.5 h-6 my-0.5 ${
                       step.completed ? 'bg-emerald-500' : 'bg-outline-variant/30'
                     }`}
                   ></div>
@@ -258,7 +259,7 @@ export const TrackOrderPage = () => {
                 >
                   {step.title}
                 </h4>
-                <span className="text-[11px] text-on-surface-variant">{step.description}</span>
+                <span className="text-[10px] text-on-surface-variant">{step.description}</span>
               </div>
             </div>
           ))}
@@ -266,21 +267,21 @@ export const TrackOrderPage = () => {
       </div>
 
       {/* Items Summary & Cart Management */}
-      <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3">
+      <div className="p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
-          <h3 className="font-headline-sm text-sm font-bold text-primary">Order Items & Bill Details</h3>
+          <h3 className="font-headline-sm text-xs font-bold text-primary">Order Items & Bill Details</h3>
           {cart.length > 0 && (
             <button
               onClick={openCart}
-              className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 flex items-center gap-1"
             >
-              <span className="material-symbols-outlined text-[14px]">shopping_bag</span>
+              <span className="material-symbols-outlined text-[13px]">shopping_bag</span>
               <span>Open Cart ({cart.reduce((s, i) => s + (i.qty || 1), 0)})</span>
             </button>
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {displayItems.map((item, idx) => {
             const price = Number(item.price || item.unit_price || 0);
             const qty = item.qty || item.quantity || 1;
@@ -312,9 +313,9 @@ export const TrackOrderPage = () => {
                 <span>-₹{discount}</span>
               </div>
             )}
-            <div className="border-t border-outline-variant/20 pt-1.5 flex justify-between font-bold text-sm text-primary">
+            <div className="border-t border-outline-variant/20 pt-1.5 flex justify-between font-bold text-xs text-primary">
               <span>Total (Paid via Demo COD)</span>
-              <span className="text-secondary font-extrabold">₹{grandTotal}</span>
+              <span className="text-secondary font-extrabold text-sm">₹{grandTotal}</span>
             </div>
           </div>
         </div>
