@@ -82,10 +82,10 @@ export const Logo = ({
         loading="eager"
       />
       <div className="flex flex-col leading-none">
-        <span className="font-headline-md font-extrabold tracking-tight text-[#0a2f5c] text-base">
+        <span className="font-headline-md font-extrabold tracking-tight text-[#4b391e] text-base">
           PHARMACARE
         </span>
-        <span className="font-headline-sm font-bold tracking-[0.22em] text-[#2e9e44] text-[10.5px] mt-0.5">
+        <span className="font-headline-sm font-bold tracking-[0.25em] text-[#80796b] text-[10.5px] mt-0.5">
           AI
         </span>
       </div>
