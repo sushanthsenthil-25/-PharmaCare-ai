@@ -90,6 +90,22 @@ def extract_user_id(auth_header: Optional[str] = None) -> str:
             pass
     return "guest-user"
 
+
+def clean_mongo_doc(d: Any) -> Any:
+    if isinstance(d, list):
+        return [clean_mongo_doc(item) for item in d]
+    if isinstance(d, dict):
+        clean = {}
+        for k, v in d.items():
+            if k == "_id":
+                clean[k] = str(v)
+            elif isinstance(v, (dict, list)):
+                clean[k] = clean_mongo_doc(v)
+            else:
+                clean[k] = v
+        return clean
+    return d
+
 # ---------------------------------------------------------------------------
 # 1. Health Probe
 # ---------------------------------------------------------------------------
@@ -543,7 +559,7 @@ async def create_order(req: OrderCreateRequest, authorization: Optional[str] = H
         ]
     }
 
-    IN_MEMORY_ORDERS[order_id] = order_doc
+    IN_MEMORY_ORDERS[order_id] = dict(order_doc)
     IN_MEMORY_CARTS[user_id] = []
 
     client = get_motor_client()
@@ -554,7 +570,8 @@ async def create_order(req: OrderCreateRequest, authorization: Optional[str] = H
         except Exception:
             pass
 
-    return {"success": True, "order": order_doc, "data": order_doc, "orderId": order_id}
+    safe_order = clean_mongo_doc(order_doc)
+    return {"success": True, "order": safe_order, "data": safe_order, "orderId": order_id}
 
 @router.get("/api/orders")
 @router.get("/orders")
@@ -568,17 +585,20 @@ async def get_orders(authorization: Optional[str] = Header(None)):
         try:
             docs = await db["orders"].find({"userId": user_id}).to_list(50)
             if docs:
-                return {"success": True, "orders": docs, "data": docs, "total": len(docs)}
+                safe_docs = clean_mongo_doc(docs)
+                return {"success": True, "orders": safe_docs, "data": safe_docs, "total": len(safe_docs)}
         except Exception:
             pass
 
-    return {"success": True, "orders": user_orders, "data": user_orders, "total": len(user_orders)}
+    safe_orders = clean_mongo_doc(user_orders)
+    return {"success": True, "orders": safe_orders, "data": safe_orders, "total": len(safe_orders)}
 
 @router.get("/api/orders/{order_id}")
 @router.get("/orders/{order_id}")
 async def get_order_by_id(order_id: str):
     if order_id in IN_MEMORY_ORDERS:
-        return {"success": True, "order": IN_MEMORY_ORDERS[order_id], "data": IN_MEMORY_ORDERS[order_id]}
+        safe_order = clean_mongo_doc(IN_MEMORY_ORDERS[order_id])
+        return {"success": True, "order": safe_order, "data": safe_order}
 
     client = get_motor_client()
     db = client[settings.MONGODB_DB_NAME] if client else None
@@ -586,7 +606,8 @@ async def get_order_by_id(order_id: str):
         try:
             doc = await db["orders"].find_one({"$or": [{"orderId": order_id}, {"id": order_id}]})
             if doc:
-                return {"success": True, "order": doc, "data": doc}
+                safe_doc = clean_mongo_doc(doc)
+                return {"success": True, "order": safe_doc, "data": safe_doc}
         except Exception:
             pass
 

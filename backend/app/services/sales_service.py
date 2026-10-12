@@ -51,7 +51,7 @@ async def create_sale(
             )
 
         # Atomic inventory check and update to prevent race conditions
-        inv_col = Inventory.get_pymongo_collection()
+        inv_col = Inventory.get_motor_collection()
         inv_doc = await inv_col.find_one_and_update(
             {
                 "product_id": str(item.product_id),

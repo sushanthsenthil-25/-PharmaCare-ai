@@ -15,25 +15,6 @@ export function OwnerDashboardPage() {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  if (!isOwnerRole) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in">
-        <span className="material-symbols-outlined text-5xl text-rose-500 mb-3">lock</span>
-        <h2 className="text-base font-bold text-on-surface mb-1">Access Denied</h2>
-        <p className="text-xs text-on-surface-variant mb-4 max-w-xs">
-          The Owner Dashboard is restricted to verified Pharmacy Owners. Your current role is '{user?.role || 'USER'}'.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all"
-        >
-          Return to User Dashboard
-        </button>
-      </div>
-    );
-  }
-
   // Real DB Data
   const [stats, setStats] = useState({
     totalMedicines: 0,
@@ -123,8 +104,10 @@ export function OwnerDashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (isOwnerRole) {
+      fetchDashboardData();
+    }
+  }, [isOwnerRole]);
 
   // Quick Stock Adjustment (+ / -)
   const handleStockChange = async (medId, delta) => {
@@ -240,6 +223,25 @@ export function OwnerDashboardPage() {
       setError(err.message || 'Failed to update pharmacy profile');
     }
   };
+
+  if (!isOwnerRole) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in">
+        <span className="material-symbols-outlined text-5xl text-rose-500 mb-3">lock</span>
+        <h2 className="text-base font-bold text-on-surface mb-1">Access Denied</h2>
+        <p className="text-xs text-on-surface-variant mb-4 max-w-xs">
+          The Owner Dashboard is restricted to verified Pharmacy Owners. Your current role is '{user?.role || 'USER'}'.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all"
+        >
+          Return to User Dashboard
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5 px-4 py-2 pb-24 w-full">

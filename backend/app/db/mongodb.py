@@ -1,6 +1,7 @@
 """
 MongoDB connection and Beanie ODM initialisation.
 All Beanie Document models must be listed in `init_db()`."""
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,20 +22,49 @@ def to_oid(val):
     except (InvalidId, ValueError, TypeError):
         return val
 
-# Module-level Motor client (created once at startup)
+# Module-level Motor client and initialization state (cached across warm serverless invocations)
 _motor_client: AsyncIOMotorClient | None = None
+_beanie_initialized: bool = False
 
 
 def get_motor_client() -> AsyncIOMotorClient:
-    global _motor_client
+    global _motor_client, _beanie_initialized
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    if _motor_client is not None:
+        try:
+            client_loop = getattr(_motor_client, "io_loop", None) or _motor_client.get_io_loop()
+            if client_loop is None or client_loop.is_closed() or (current_loop and client_loop is not current_loop):
+                try:
+                    _motor_client.close()
+                except Exception:
+                    pass
+                _motor_client = None
+                _beanie_initialized = False
+        except Exception:
+            _motor_client = None
+            _beanie_initialized = False
+
     if _motor_client is None:
         uri = settings.mongodb_connection_string
-        _motor_client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=4000)
+        _motor_client = AsyncIOMotorClient(
+            uri,
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=10,
+            minPoolSize=0,
+        )
     return _motor_client
 
 
 async def init_db() -> None:
-    """Initialise Beanie with all document models. Called from app lifespan."""
+    """Initialise Beanie with all document models. Idempotent for serverless reuse."""
+    global _beanie_initialized
+    if _beanie_initialized:
+        return
+
     try:
         from app.models.user import Business, Branch, User
         from app.models.product import Category, Product
@@ -64,9 +94,10 @@ async def init_db() -> None:
                     AuditLog,
                 ],
             )
-            print("[MongoDB] Beanie ODM models initialized successfully.")
-            # pyrefly: ignore [invalid-annotation]
-    except Exception:logger.exception("[MongoDB] Beanie initialization failed")
+            _beanie_initialized = True
+            logger.info("[MongoDB] Beanie ODM models initialized successfully.")
+    except Exception:
+        logger.exception("[MongoDB] Beanie initialization failed")
 
 
 async def close_db() -> None:

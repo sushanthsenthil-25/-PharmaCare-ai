@@ -13,21 +13,29 @@ except Exception:
 class Settings(BaseSettings):
     model_config: Dict[str, Any] = {"extra": "ignore", "env_file": ".env", "env_file_encoding": "utf-8"}
 
+        
     # Database (MongoDB)
-    MONGODB_URL: str = "mongodb+srv://sushanthsenthil:sushanthsenthil@cluster0.cmktdy3.mongodb.net/pharmacare?retryWrites=true&w=majority"
-    MONGODB_URI: str = "mongodb+srv://sushanthsenthil:sushanthsenthil@cluster0.cmktdy3.mongodb.net/pharmacare?retryWrites=true&w=majority"
-    MONGODB_DB_NAME: str = "pharmacare"
+    MONGODB_URL: str = ""
+    MONGODB_URI: str = ""
+    MONGODB_DB_NAME: str = "pharmacare_ai"
 
     @property
     def mongodb_connection_string(self) -> str:
-        import os
-        return (
-            os.getenv("MONGODB_URI")
-            or os.getenv("MONGODB_URL")
-            or self.MONGODB_URI
-            or self.MONGODB_URL
-            or "mongodb+srv://sushanthsenthil:sushanthsenthil@cluster0.cmktdy3.mongodb.net/pharmacare?retryWrites=true&w=majority"
+        connection_string = (
+            os.getenv("MONGODB_URL", "").strip()
+            or os.getenv("MONGODB_URI", "").strip()
+            or self.MONGODB_URL.strip()
+            or self.MONGODB_URI.strip()
         )
+
+        if not connection_string:
+            raise ValueError(
+                "MongoDB connection string is missing. "
+                "Set MONGODB_URL in backend/.env or Vercel environment variables."
+            )
+
+        return connection_string
+
 
     # JWT
     JWT_SECRET: str = "dev-secret-change-in-production-must-be-64-chars-minimum"
@@ -37,13 +45,18 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
-    CORS_ORIGINS: str = "*"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://pharma-care-ai-slcb.vercel.app"
 
     @property
     def cors_origins_list(self) -> List[str]:
-        if self.CORS_ORIGINS == "*":
+        raw = os.getenv("CORS_ORIGINS", "").strip() or self.CORS_ORIGINS.strip()
+        if not raw:
+            return ["http://localhost:5173", "https://pharma-care-ai-slcb.vercel.app"]
+        if raw == "*":
+            if self.is_production:
+                return ["https://pharma-care-ai-slcb.vercel.app"]
             return ["*"]
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
 
     # AI / Speech
     AI_API_KEY: str = ""

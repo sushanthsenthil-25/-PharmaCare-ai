@@ -123,7 +123,8 @@ async def search_medicines(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
+        logger.error(f"[MedicineCatalogue] Search failed: {exc}")
         # Do not expose database credentials or internal errors.
         raise HTTPException(
             status_code=503,

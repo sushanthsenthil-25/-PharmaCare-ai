@@ -254,6 +254,13 @@ class ApiClient {
     },
   };
 
+  // Indian Medicine Catalogue (FastAPI)
+  medicineCatalogue = {
+    search: async (q, page = 1, pageSize = 20) => {
+      return await this.get('/api/v1/medicine-catalogue/search', { q, page, page_size: pageSize });
+    },
+  };
+
   // Compatibility alias for generic product listings
   products = {
     list: async (params = {}) => {
