@@ -81,8 +81,8 @@ export const connectDB = async () => {
     }
   } else {
     // In local development, prefer explicit local development URI unless MONGODB_URI is provided
-    targetUri = (process.env.MONGODB_URI && !process.env.USE_LOCAL_DB) 
-      ? process.env.MONGODB_URI.trim() 
+    targetUri = (process.env.MONGODB_URI && !process.env.USE_LOCAL_DB)
+      ? process.env.MONGODB_URI.trim()
       : LOCAL_DEV_URI;
   }
 
@@ -105,7 +105,26 @@ export const connectDB = async () => {
   } catch (err) {
     global._mongooseConn.promise = null;
     global._mongooseConn.conn = null;
-    console.error(`[MongoDB Error]: Connection failed to ${sanitizeUri(targetUri)} (${err.name || 'Error'}${err.code ? `, code ${err.code}` : ''}): ${err.message}`);
+
+    const topologyServers = err.reason?.servers;
+
+    const serverDetails = topologyServers
+      ? Array.from(topologyServers.entries()).map(([address, server]) => ({
+        address,
+        type: server.type,
+        error: server.error?.message || null,
+      }))
+      : [];
+
+    console.error('[MongoDB Diagnostics]', JSON.stringify({
+      name: err.name,
+      code: err.code || null,
+      message: err.message,
+      reason: err.reason?.message || null,
+      servers: serverDetails,
+      readyState: mongoose.connection.readyState,
+    }));
+
 
     // In local development, if remote Atlas failed, attempt local MongoDB fallback
     if (!isProduction && targetUri !== LOCAL_DEV_URI) {
