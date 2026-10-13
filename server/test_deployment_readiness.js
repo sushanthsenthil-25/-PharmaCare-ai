@@ -22,8 +22,7 @@ try {
   }
 } catch (_) {}
 
-dotenv.config();
-
+import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import medicineRoutes from './routes/medicineRoutes.js';
 import healthProductRoutes from './routes/healthProductRoutes.js';
@@ -62,10 +61,8 @@ async function runProductionDeploymentAudit() {
   console.log('===========================================================\n');
 
   // 1. Connect DB
-  if (mongoose.connection.readyState !== 1 && process.env.MONGODB_URI) {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('[Audit] Connected to MongoDB Atlas (Production Cluster)');
-  }
+  await connectDB();
+  console.log('[Audit] Connected to database');
 
   // 2. Start server on dynamic port for testing
   const server = http.createServer(app);
@@ -230,8 +227,7 @@ async function runProductionDeploymentAudit() {
   // -------------------------------------------------------------
   // AUDIT STAGE 7: FRONTEND PRODUCTION BUILD & SECURITY AUDIT
   // -------------------------------------------------------------
-  console.log('\nSTAGE 7: Frontend Build & Secret Exposure Audit');
-  const distPath = path.resolve('../dist');
+  const distPath = fs.existsSync(path.resolve('dist')) ? path.resolve('dist') : path.resolve('../dist');
   assertCheck('dist/ directory exists', fs.existsSync(distPath));
   assertCheck('dist/index.html exists', fs.existsSync(path.join(distPath, 'index.html')));
 

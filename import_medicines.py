@@ -9,9 +9,12 @@ from pymongo import MongoClient, UpdateOne
 from bson.decimal128 import Decimal128
 
 load_dotenv(Path(__file__).resolve().parent / "backend" / ".env")
+load_dotenv(Path(__file__).resolve().parent / "server" / ".env")
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-MONGODB_URI = os.getenv("MONGODB_URL")
-DATABASE_NAME = os.getenv("MONGODB_DATABASE", "pharmacare_ai")
+MONGODB_URI = os.getenv("MONGODB_URL") or os.getenv("MONGODB_URI")
+LOCAL_URI = "mongodb://127.0.0.1:27017"
+DATABASE_NAME = os.getenv("MONGODB_DATABASE", "pharmacare")
 CSV_PATH = Path("data/indian_medicine_data.csv")
 COLLECTION_NAME = "medicine_catalogue"
 SOURCE = "junioralive/Indian-Medicine-Dataset"
@@ -69,24 +72,39 @@ def convert_row(row):
 
 
 def main():
-    if not MONGODB_URI:
-        raise RuntimeError(
-            "MONGODB_URI missing. Create a .env file with your Atlas URI."
-        )
-
     if not CSV_PATH.exists():
         raise FileNotFoundError(
             f"Dataset not found: {CSV_PATH.resolve()}"
         )
 
-    client = MongoClient(
-        MONGODB_URI,
-        serverSelectionTimeoutMS=10000,
-    )
+    client = None
+    target_uri = None
+
+    if MONGODB_URI:
+        try:
+            print("Connecting to configured MongoDB URI...")
+            c = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=4000)
+            c.admin.command("ping")
+            client = c
+            target_uri = MONGODB_URI
+            print("Connected to remote MongoDB cluster.")
+        except Exception as e:
+            print(f"Remote MongoDB connection failed ({e}). Falling back to local MongoDB...")
+
+    if not client:
+        try:
+            print(f"Connecting to local MongoDB at {LOCAL_URI}...")
+            c = MongoClient(LOCAL_URI, serverSelectionTimeoutMS=3000)
+            c.admin.command("ping")
+            client = c
+            target_uri = LOCAL_URI
+            print("Connected to local MongoDB.")
+        except Exception as e:
+            raise RuntimeError(f"Could not connect to local or remote MongoDB: {e}")
 
     try:
-        client.admin.command("ping")
         collection = client[DATABASE_NAME][COLLECTION_NAME]
+
 
         collection.create_index(
             [("source", 1), ("source_id", 1)],
@@ -96,6 +114,14 @@ def main():
         collection.create_index(
             [("name", "text"), ("composition", "text")],
             name="medicine_search_text",
+        )
+        collection.create_index(
+            [("name_normalized", 1)],
+            name="medicine_name_normalized",
+        )
+        collection.create_index(
+            [("price_inr", 1)],
+            name="medicine_price_inr",
         )
 
         batch = []

@@ -9,6 +9,7 @@ export const PersonalCarePage = () => {
   const { addToCart } = useApp();
   const [personalItems, setPersonalItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
 
@@ -22,39 +23,42 @@ export const PersonalCarePage = () => {
     'Acne & Blemish Care',
   ];
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPersonalItems = async () => {
-      setLoading(true);
-      try {
-        const res = await api.personalCare.list({ limit: 50 });
-        if (isMounted) {
-          const items = Array.isArray(res) ? res : res?.products || res?.items || [];
-          const mapped = items.map((p) => ({
-            id: p._id || p.id,
-            rawId: p._id || p.id,
-            name: p.name,
-            category: p.category || 'Clinical Skincare',
-            desc: p.description || 'Clinical Skincare & Hygiene Formulation',
-            price: Number(p.price || 320),
-            originalPrice: p.originalPrice || Math.round(Number(p.price || 320) * 1.25),
-            tag: p.tag || 'Dermatologist Verified',
-            img: getProductImageUrl(p),
-            stock: p.stock !== undefined ? p.stock : 50,
-            productType: 'PersonalCareProduct',
-          }));
-          setPersonalItems(mapped);
-        }
-      } catch {
-        // Fallback gracefully
-      } finally {
-        if (isMounted) setLoading(false);
+  const fetchPersonalItems = async (isMountedRef = { current: true }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.personalCare.list({ limit: 50 });
+      if (isMountedRef.current) {
+        const items = Array.isArray(res) ? res : res?.products || res?.items || [];
+        const mapped = items.map((p) => ({
+          id: p._id || p.id,
+          rawId: p._id || p.id,
+          name: p.name,
+          category: p.category || 'Clinical Skincare',
+          desc: p.description || 'Clinical Skincare & Hygiene Formulation',
+          price: Number(p.price || 320),
+          originalPrice: p.originalPrice || Math.round(Number(p.price || 320) * 1.25),
+          tag: p.tag || 'Dermatologist Verified',
+          img: getProductImageUrl(p),
+          stock: p.stock !== undefined ? p.stock : 50,
+          productType: 'PersonalCareProduct',
+        }));
+        setPersonalItems(mapped);
       }
-    };
+    } catch (err) {
+      if (isMountedRef.current) {
+        setError(err.message || 'Cannot reach server — check your connection.');
+      }
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
+  };
 
-    fetchPersonalItems();
+  useEffect(() => {
+    const isMountedRef = { current: true };
+    fetchPersonalItems(isMountedRef);
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
   }, []);
 
@@ -117,6 +121,22 @@ export const PersonalCarePage = () => {
         />
       </div>
 
+      {/* Error state with retry action */}
+      {error && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-red-600 text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => fetchPersonalItems()}
+            className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Loading Skeleton */}
       {loading && personalItems.length === 0 && (
         <div className="flex flex-col gap-2.5 py-1">
@@ -172,7 +192,7 @@ export const PersonalCarePage = () => {
           </div>
         ))}
 
-        {!loading && filteredItems.length === 0 && (
+        {!loading && !error && filteredItems.length === 0 && (
           <div className="p-6 text-center text-xs text-on-surface-variant bg-surface-container-low/50 rounded-xl">
             No personal care products match the selected category or search query.
           </div>

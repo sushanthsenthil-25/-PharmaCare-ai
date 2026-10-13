@@ -6,7 +6,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
 import mongoose from 'mongoose';
-import { connectDB } from './config/db.js';
+import { connectDB, closeDB } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 // Configure Mongoose buffer timeout for serverless environment
@@ -29,20 +29,10 @@ import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
 
-// Connect to MongoDB
+// Initialise database connection once at startup
 connectDB();
 
 const app = express();
-
-// Ensure MongoDB is connected for API requests (serverless resilient middleware)
-app.use(async (req, res, next) => {
-  if (req.path.startsWith('/api') && mongoose.connection.readyState !== 1) {
-    try {
-      await connectDB();
-    } catch (_) {}
-  }
-  next();
-});
 
 // Security Middleware
 app.use(helmet());
@@ -135,6 +125,7 @@ app.get('/api/health', (req, res) => {
   const dbState = mongoose.connection.readyState;
   res.json({
     success: true,
+    status: 'online',
     message: 'PharmaCare AI backend is running',
     environment: process.env.NODE_ENV || 'production',
     database: dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected',
@@ -291,11 +282,27 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 // Only call listen when running as a standalone Node.js process, not in Vercel serverless
+let serverInstance = null;
 if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, '0.0.0.0', () => {
+  serverInstance = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[PharmaCare AI Server] Running on port ${PORT} (0.0.0.0)`);
   });
+
+  const handleShutdown = async (signal) => {
+    console.log(`\n[PharmaCare AI Server] Received ${signal}. Shutting down gracefully...`);
+    if (serverInstance) {
+      serverInstance.close(() => {
+        console.log('[PharmaCare AI Server] HTTP server closed.');
+      });
+    }
+    await closeDB();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 }
 
 export default app;
+
 

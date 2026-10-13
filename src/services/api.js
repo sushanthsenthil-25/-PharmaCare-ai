@@ -211,13 +211,15 @@ class ApiClient {
     check: async () => {
       try {
         const res = await this.get('/api/health');
+        const dbConnected = res?.database === 'connected';
         return {
-          connected: true,
-          status: 'online',
+          connected: Boolean(res?.success && dbConnected),
+          status: dbConnected ? 'online' : 'degraded',
           message: res?.message || 'PharmaCare AI backend is running',
           environment: res?.environment || 'production',
-          database: res?.database || 'connected',
+          database: res?.database || 'disconnected',
           timestamp: res?.timestamp,
+          errorType: !dbConnected ? 'DATABASE_DISCONNECTED' : null,
         };
       } catch (err) {
         return {
