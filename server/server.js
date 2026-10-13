@@ -6,9 +6,11 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
 import mongoose from 'mongoose';
-import { connectDB, closeDB, pingDB } from './config/db.js';
+import { connectDB, closeDB, isDbConnected, pingDB } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
+// Fail fast instead of letting requests sit in Mongoose's operation buffer.
+mongoose.set('bufferCommands', false);
 // Route imports
 import authRoutes from './routes/authRoutes.js';
 import medicineRoutes from './routes/medicineRoutes.js';
@@ -32,20 +34,30 @@ connectDB().catch(() => {});
 // Middleware to await database connection and ensure availability for DB-dependent routes
 export const requireDb = async (req, res, next) => {
   try {
-    await connectDB();
-  } catch (_) {}
-
-  if (mongoose.connection.readyState !== 1) {
+    const connection = await connectDB();
+    if (!connection || !isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database is temporarily unavailable. Please try again shortly.',
+        },
+      });
+    }
+    return next();
+  } catch (error) {
+    console.error(`[Database middleware] ${error.name || 'Error'}: ${error.message}`);
     return res.status(503).json({
       success: false,
       error: {
         code: 'DATABASE_DISCONNECTED',
-        message: 'Database is currently unavailable. Please try again shortly.',
+        message: 'Database is temporarily unavailable. Please try again shortly.',
       },
     });
   }
-  next();
 };
+
+export const requireDatabase = requireDb;
 
 const app = express();
 
@@ -187,7 +199,6 @@ app.get('/api/health/ai', (req, res) => {
   });
 });
 
-// Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/medicines', requireDb, medicineRoutes);
 app.use('/api/health-products', requireDb, healthProductRoutes);

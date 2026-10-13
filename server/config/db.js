@@ -1,12 +1,4 @@
 import mongoose from 'mongoose';
-import dns from 'dns';
-
-// Configure DNS for reliable Atlas SRV record resolution
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (_) {
-  // Keep system defaults if DNS override fails
-}
 
 // Configure Mongoose for serverless execution: disable command buffering
 mongoose.set('bufferCommands', false);
@@ -29,14 +21,18 @@ export const sanitizeUri = (uri) => {
 export const isDbConnected = () => mongoose.connection.readyState === 1;
 
 /**
- * Perform a real MongoDB ping command to verify end-to-end database connectivity
+ * Perform a real, bounded MongoDB ping command to verify end-to-end database connectivity
  */
-export const pingDB = async () => {
+export const pingDB = async (timeoutMs = 2000) => {
   if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
     return false;
   }
   try {
-    const res = await mongoose.connection.db.admin().ping();
+    const pingPromise = mongoose.connection.db.admin().ping();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Ping timeout')), timeoutMs)
+    );
+    const res = await Promise.race([pingPromise, timeoutPromise]);
     return !!(res && (res.ok === 1 || res.ok === true));
   } catch (_) {
     return false;
@@ -48,6 +44,10 @@ export const pingDB = async () => {
  * Reuses existing active connections, awaits in-flight promises, and handles retries.
  */
 export const connectDB = async () => {
+  if (!global._mongooseConn) {
+    global._mongooseConn = { conn: null, promise: null };
+  }
+
   if (mongoose.connection.readyState === 1) {
     global._mongooseConn.conn = mongoose.connection;
     return mongoose.connection;
@@ -60,6 +60,7 @@ export const connectDB = async () => {
         global._mongooseConn.conn = mongoose.connection;
         return mongoose.connection;
       }
+      global._mongooseConn.promise = null;
     } catch (_) {
       global._mongooseConn.promise = null;
     }
@@ -74,6 +75,10 @@ export const connectDB = async () => {
       return null;
     }
     targetUri = process.env.MONGODB_URI.trim();
+    if (!targetUri) {
+      console.error('[MongoDB Error]: MONGODB_URI is present but empty in production.');
+      return null;
+    }
   } else {
     // In local development, prefer explicit local development URI unless MONGODB_URI is provided
     targetUri = (process.env.MONGODB_URI && !process.env.USE_LOCAL_DB) 
@@ -100,7 +105,7 @@ export const connectDB = async () => {
   } catch (err) {
     global._mongooseConn.promise = null;
     global._mongooseConn.conn = null;
-    console.error(`[MongoDB Error]: Connection failed to ${sanitizeUri(targetUri)}: ${err.message}`);
+    console.error(`[MongoDB Error]: Connection failed to ${sanitizeUri(targetUri)} (${err.name || 'Error'}${err.code ? `, code ${err.code}` : ''}): ${err.message}`);
 
     // In local development, if remote Atlas failed, attempt local MongoDB fallback
     if (!isProduction && targetUri !== LOCAL_DEV_URI) {
@@ -119,7 +124,7 @@ export const connectDB = async () => {
       } catch (localErr) {
         global._mongooseConn.promise = null;
         global._mongooseConn.conn = null;
-        console.error(`[MongoDB Error]: Local fallback also failed: ${localErr.message}`);
+        console.error(`[MongoDB Error]: Local fallback also failed (${localErr.name || 'Error'}): ${localErr.message}`);
       }
     }
 
@@ -144,4 +149,3 @@ export const closeDB = async () => {
     console.error('[MongoDB]: Error during disconnect:', err.message);
   }
 };
-

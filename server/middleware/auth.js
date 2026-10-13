@@ -114,7 +114,31 @@ export const optionalAuth = async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'pharmacare-ai-super-secret-jwt-key-2026-secure');
-      req.user = await User.findById(decoded.id).select('-password');
+      if (decoded.id === '65f1a2b3c4d5e6f7a8b9c0d2' || decoded.id === 'usr_default') {
+        req.user = {
+          _id: '65f1a2b3c4d5e6f7a8b9c0d2',
+          id: '65f1a2b3c4d5e6f7a8b9c0d2',
+          name: 'Demo Pharmacy Owner',
+          email: 'owner@pharmacare.ai',
+          role: 'OWNER',
+          businessName: 'PharmaCare Central Pharmacy',
+          phone: '+91 98765 43210',
+          address: 'Indiranagar, Bangalore 560038',
+        };
+      } else if (decoded.id === '65f1a2b3c4d5e6f7a8b9c0d1') {
+        req.user = {
+          _id: '65f1a2b3c4d5e6f7a8b9c0d1',
+          id: '65f1a2b3c4d5e6f7a8b9c0d1',
+          name: 'Demo Pharmacist',
+          email: 'demo@pharmacare.ai',
+          role: 'USER',
+          businessName: 'PharmaCare Central Pharmacy',
+          phone: '+91 98765 43210',
+          address: 'Indiranagar, Bangalore 560038',
+        };
+      } else if (mongoose.connection.readyState === 1) {
+        req.user = await User.findById(decoded.id).select('-password');
+      }
     } catch {
       // Ignore token error for optional auth
     }

@@ -100,11 +100,12 @@ export const getMedicines = async (req, res) => {
       items: formatted,
     });
   } catch (error) {
+    console.error(`[Medicine catalogue] ${error.name || 'Error'}: ${error.message}`);
     return res.status(503).json({
       success: false,
       error: {
         code: 'DATABASE_DISCONNECTED',
-        message: 'Database query failed or database is unavailable.',
+        message: 'Medicine catalogue is temporarily unavailable. Please try again shortly.',
       },
     });
   }
@@ -131,11 +132,12 @@ export const searchMedicines = async (req, res) => {
       items: results,
     });
   } catch (error) {
+    console.error(`[Medicine search] ${error.name || 'Error'}: ${error.message}`);
     return res.status(503).json({
       success: false,
       error: {
         code: 'DATABASE_DISCONNECTED',
-        message: 'Database search failed or database is unavailable.',
+        message: 'Medicine search is temporarily unavailable. Please try again shortly.',
       },
     });
   }

@@ -50,6 +50,16 @@ export const registerUser = async (req, res, next) => {
       });
     }
 
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database is currently unavailable. Please try Quick Demo Login or try again shortly.',
+        },
+      });
+    }
+
     let userExists = null;
     try {
       userExists = await User.findOne({ email: userEmail });
@@ -58,8 +68,8 @@ export const registerUser = async (req, res, next) => {
       return res.status(503).json({
         success: false,
         error: {
-          code: 'DATABASE_CONNECTING',
-          message: 'Database is connecting. Please try Quick Demo Login or try again in a moment.',
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database is currently unavailable. Please try Quick Demo Login or try again in a moment.',
         },
       });
     }
@@ -144,8 +154,18 @@ export const loginUser = async (req, res, next) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
-    // Instant demo login without database dependency
+    // Demo account authentication with credential verification
     if (DEMO_FALLBACKS[cleanEmail]) {
+      const allowedPasswords = ['Demo@123Password', 'Password123!', 'demo123', 'owner123'];
+      if (!allowedPasswords.includes(password)) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password',
+          },
+        });
+      }
       const demoUser = DEMO_FALLBACKS[cleanEmail];
       const token = generateToken(demoUser._id);
       return res.json({
