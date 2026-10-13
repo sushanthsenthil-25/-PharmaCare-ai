@@ -13,6 +13,7 @@ import { PersonalCarePage } from './pages/PersonalCarePage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { TrackOrderPage } from './pages/TrackOrderPage';
 import { OwnerDashboardPage } from './pages/OwnerDashboardPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Root Route: Unauthenticated visitors see the professional login/welcome portal first
 function RootRoute() {
@@ -73,24 +74,26 @@ export function App() {
             
             {/* Scrollable Main Area */}
             <main className="flex-1 w-full pt-[96px] pb-16">
-              <Routes>
-                <Route path="/" element={<RootRoute />} />
-                <Route path="/dashboard" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/medicines" element={<MedicinesPage />} />
-                <Route path="/health" element={<HealthProductsPage />} />
-                <Route path="/personal-care" element={<PersonalCarePage />} />
-                <Route path="/product/:id" element={<ProductDetailPage />} />
-                <Route path="/track-order" element={<TrackOrderPage />} />
-                <Route
-                  path="/owner/dashboard"
-                  element={
-                    <ProtectedRoute allowedRoles={['OWNER', 'PHARMACIST', 'ADMIN']}>
-                      <OwnerDashboardPage />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
+              <ErrorBoundary>
+                <Routes>
+                  <Route path="/" element={<RootRoute />} />
+                  <Route path="/dashboard" element={<HomePage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/medicines" element={<MedicinesPage />} />
+                  <Route path="/health" element={<HealthProductsPage />} />
+                  <Route path="/personal-care" element={<PersonalCarePage />} />
+                  <Route path="/product/:id" element={<ProductDetailPage />} />
+                  <Route path="/track-order" element={<TrackOrderPage />} />
+                  <Route
+                    path="/owner/dashboard"
+                    element={
+                      <ProtectedRoute allowedRoles={['OWNER', 'PHARMACIST', 'ADMIN']}>
+                        <OwnerDashboardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </ErrorBoundary>
             </main>
 
             <BottomNav />
