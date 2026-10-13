@@ -282,10 +282,106 @@ function escapeRegex(text) {
   return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
+export function formatCatalogueDoc(doc) {
+  if (!doc) return null;
+  const rawId = String(doc.source_id || doc._id || '');
+  const id = `catalogue_${rawId}`;
+
+  return {
+    id,
+    _id: id,
+    rawId,
+    name: doc.name,
+    genericName: Array.isArray(doc.composition) && doc.composition[0] ? doc.composition[0] : (doc.name || null),
+    composition: Array.isArray(doc.composition) ? doc.composition.join(', ') : (doc.composition || ''),
+    manufacturer: doc.manufacturer_name || 'Standard Pharmaceutical Manufacturer',
+    brand: doc.manufacturer_name || 'Standard Manufacturer',
+    dosageForm: doc.dosage_form || 'Clinical Formulation',
+    form: doc.dosage_form || 'Tablet',
+    packSize: doc.pack_size_label || 'Standard Packaging',
+    price: doc.price_inr !== null && doc.price_inr !== undefined ? Number(doc.price_inr) : 0,
+    originalPrice: doc.price_inr !== null && doc.price_inr !== undefined ? Math.round(Number(doc.price_inr) * 1.25) : 0,
+    discount: 'Reference Price',
+    stock: 0,
+    isLiveInventory: false,
+    isCatalogue: true,
+    catalogueType: 'National Medicine Database (11,621 Formulations)',
+    source: 'National Medicine Database (11,621 Formulations)',
+    uses: Array.isArray(doc.composition) ? doc.composition : (doc.composition ? [doc.composition] : []),
+    description: `National Catalogue formulation containing ${Array.isArray(doc.composition) ? doc.composition.join(' + ') : (doc.composition || doc.name)}.`,
+  };
+}
+
+export async function findCatalogueMedicineById(id) {
+  if (!id) return null;
+  const rawStr = String(id).trim();
+  const cleanId = rawStr.replace(/^catalogue_/, '').trim();
+  if (!cleanId) return null;
+
+  try {
+    if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+      const col = mongoose.connection.db.collection('medicine_catalogue');
+      const orClauses = [
+        { source_id: cleanId },
+      ];
+      if (/^\d+$/.test(cleanId)) {
+        orClauses.push({ source_id: Number(cleanId) });
+      }
+      if (mongoose.Types.ObjectId.isValid(cleanId) && cleanId.length === 24) {
+        orClauses.push({ _id: new mongoose.Types.ObjectId(cleanId) });
+      }
+
+      const doc = await col.findOne({ $or: orClauses });
+      if (doc) {
+        return formatCatalogueDoc(doc);
+      }
+    }
+  } catch (err) {
+    console.warn('[findCatalogueMedicineById] Query error:', err.message);
+  }
+  return null;
+}
+
+export async function findLivePharmacyStockForMedicine(catalogueItem) {
+  if (!catalogueItem) return null;
+  const name = catalogueItem.name || '';
+  const genericName = catalogueItem.genericName || '';
+  const terms = [name, genericName].filter((t) => t && t.length >= 3);
+  if (!terms.length) return null;
+
+  try {
+    const escapedTerms = terms.map((t) => escapeRegex(t.slice(0, 15)));
+    const regexList = escapedTerms.map((t) => new RegExp(t, 'i'));
+
+    const liveMatch = await Medicine.findOne({
+      $or: [
+        { name: { $in: regexList } },
+        { genericName: { $in: regexList } },
+      ],
+      stock: { $gt: 0 },
+      isActive: { $ne: false },
+    }).populate('pharmacyId').lean();
+
+    return liveMatch || null;
+  } catch (err) {
+    console.warn('[findLivePharmacyStockForMedicine] Error:', err.message);
+    return null;
+  }
+}
+
 export async function searchCatalogueMedicines(rawQuery, options = {}) {
   const { limit = 10 } = options;
   const cleanTerm = extractMedicineName(rawQuery) || normalizeQuery(rawQuery);
   if (!cleanTerm || cleanTerm.length < 2) return [];
+
+  // Check if query is directly a catalogue ID
+  const directCleanId = cleanTerm.replace(/^catalogue_/, '').trim();
+  if (/^\d+$/.test(directCleanId)) {
+    const directDoc = await findCatalogueMedicineById(cleanTerm);
+    if (directDoc) {
+      return [directDoc];
+    }
+  }
 
   const escaped = escapeRegex(cleanTerm);
   const regex = new RegExp(escaped, 'i');
@@ -293,40 +389,27 @@ export async function searchCatalogueMedicines(rawQuery, options = {}) {
   try {
     if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
       const col = mongoose.connection.db.collection('medicine_catalogue');
+      const orConditions = [
+        { name: regex },
+        { name_normalized: regex },
+        { composition: regex },
+        { manufacturer_name: regex },
+      ];
+
+      // If looks like an ID, also query source_id
+      if (directCleanId && directCleanId.length >= 2) {
+        orConditions.push({ source_id: directCleanId });
+        if (/^\d+$/.test(directCleanId)) {
+          orConditions.push({ source_id: Number(directCleanId) });
+        }
+      }
+
       const docs = await col
-        .find({
-          $or: [
-            { name: regex },
-            { name_normalized: regex },
-            { composition: regex },
-            { manufacturer_name: regex },
-          ],
-        })
+        .find({ $or: orConditions })
         .limit(limit)
         .toArray();
 
-      return docs.map((doc) => ({
-        id: `catalogue_${doc.source_id || doc._id}`,
-        _id: `catalogue_${doc.source_id || doc._id}`,
-        rawId: doc.source_id || String(doc._id),
-        name: doc.name,
-        genericName: Array.isArray(doc.composition) && doc.composition[0] ? doc.composition[0] : null,
-        composition: Array.isArray(doc.composition) ? doc.composition.join(', ') : (doc.composition || ''),
-        manufacturer: doc.manufacturer_name || 'Standard Pharmaceutical Manufacturer',
-        brand: doc.manufacturer_name || 'Standard Manufacturer',
-        dosageForm: doc.dosage_form || 'Clinical Formulation',
-        form: doc.dosage_form || 'Tablet',
-        packSize: doc.pack_size_label || 'Standard Packaging',
-        price: doc.price_inr !== null ? doc.price_inr : 0,
-        originalPrice: doc.price_inr !== null ? Math.round(doc.price_inr * 1.25) : 0,
-        stock: 0,
-        isLiveInventory: false,
-        isCatalogue: true,
-        catalogueType: 'National Medicine Database (11,621 Formulations)',
-        source: 'National Medicine Database (11,621 Formulations)',
-        uses: doc.composition || [],
-        description: `National Catalogue formulation containing ${Array.isArray(doc.composition) ? doc.composition.join(' + ') : doc.composition}.`,
-      }));
+      return docs.map(formatCatalogueDoc);
     }
   } catch (err) {
     console.warn('[searchCatalogueMedicines] Query error:', err.message);
@@ -336,6 +419,16 @@ export async function searchCatalogueMedicines(rawQuery, options = {}) {
 
 export async function searchUnifiedCatalogue(rawQuery, options = {}) {
   const { limit = 10 } = options;
+
+  // 1. Direct catalogue ID check (e.g. catalogue_6714, catalogue_9761, 6714, 9761)
+  const trimmed = String(rawQuery || '').trim();
+  if (trimmed.startsWith('catalogue_') || (/^\d{3,6}$/.test(trimmed) && !/fever|pain|cough/i.test(trimmed))) {
+    const directCat = await findCatalogueMedicineById(trimmed);
+    if (directCat) {
+      return [directCat];
+    }
+  }
+
   const storeMedicines = await searchMedicinesRanked(rawQuery, options);
   if (storeMedicines.length >= limit) {
     return storeMedicines.slice(0, limit);
@@ -350,5 +443,8 @@ export default {
   searchMedicinesRanked,
   searchCatalogueMedicines,
   searchUnifiedCatalogue,
+  findCatalogueMedicineById,
+  findLivePharmacyStockForMedicine,
+  formatCatalogueDoc,
   formatMedicine,
 };

@@ -67,6 +67,12 @@ export const getPersonalCareProducts = async (req, res, next) => {
 // @access  Public
 export const getPersonalCareById = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id) || String(req.params.id).length !== 24) {
+      return res.status(404).json({
+        success: false,
+        message: 'Personal care product not found with ID ' + req.params.id,
+      });
+    }
     const product = await PersonalCareProduct.findById(req.params.id).lean();
 
     if (!product) {

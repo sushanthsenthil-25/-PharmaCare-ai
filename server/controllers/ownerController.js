@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Medicine from '../models/Medicine.js';
 import Order from '../models/Order.js';
 import Pharmacy from '../models/Pharmacy.js';
@@ -256,6 +257,9 @@ export const createMedicine = async (req, res, next) => {
 // @access  Private (Owner/Pharmacist)
 export const updateMedicine = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
+    }
     const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
 
@@ -337,6 +341,9 @@ export const updateMedicine = async (req, res, next) => {
 // @access  Private (Owner/Pharmacist)
 export const updateStock = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
+    }
     const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
 
@@ -388,6 +395,9 @@ export const updateStock = async (req, res, next) => {
 // @access  Private (Owner/Pharmacist)
 export const deleteMedicine = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
+    }
     const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
 
@@ -447,6 +457,9 @@ export const getOwnerOrders = async (req, res, next) => {
 // @access  Private (Owner/Pharmacist)
 export const updateOrderStatus = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
     const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const order = await Order.findById(req.params.id);
 

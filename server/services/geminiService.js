@@ -12,6 +12,8 @@ import {
   extractMedicineName,
   normalizeQuery,
   formatMedicine,
+  findCatalogueMedicineById,
+  findLivePharmacyStockForMedicine,
 } from './medicineSearchService.js';
 import { calculateCart, calculateDeliveryEstimate } from './cartService.js';
 
@@ -329,6 +331,12 @@ export class GeminiService {
    * Search MongoDB Catalog using ranked relevance search
    */
   async searchCatalog(query) {
+    if (!query) return [];
+    const trimmed = String(query).trim();
+    if (trimmed.startsWith('catalogue_') || (/^\d+$/.test(trimmed) && trimmed.length >= 3)) {
+      const directDoc = await findCatalogueMedicineById(trimmed);
+      if (directDoc) return [directDoc];
+    }
     return await searchUnifiedCatalogue(query, { limit: 10 });
   }
 
@@ -410,6 +418,21 @@ export class GeminiService {
         tts_text: "I couldn't identify which product you'd like to add. Please specify the medicine name.",
         context,
       };
+    }
+
+    // 3. If target product is a catalogue medicine, resolve to live pharmacy inventory
+    if (targetProduct.isCatalogue || String(targetProduct.id || '').startsWith('catalogue_')) {
+      const liveStock = await findLivePharmacyStockForMedicine(targetProduct);
+      if (liveStock && liveStock.stock > 0) {
+        targetProduct = formatMedicine(liveStock);
+      } else {
+        return {
+          type: 'INFORMATION',
+          message: `**${targetProduct.name}** is listed in the National Medicine Catalogue, but currently no local partner pharmacy has it in active stock. It cannot be added to your cart.`,
+          tts_text: `${targetProduct.name} is currently not available from local partner pharmacies.`,
+          context,
+        };
+      }
     }
 
     let calculatedTotal = targetProduct.price * qtyToAdd;
@@ -726,13 +749,22 @@ export class GeminiService {
       }
 
       if (targetProduct) {
+        let priceStr = `₹${targetProduct.price}`;
+        if (targetProduct.isCatalogue || String(targetProduct.id || '').startsWith('catalogue_')) {
+          const liveStock = await findLivePharmacyStockForMedicine(targetProduct);
+          if (liveStock) {
+            priceStr = `₹${liveStock.price} (available at ${liveStock.pharmacyId?.businessName || 'partner pharmacy'})`;
+          } else {
+            priceStr = `₹${targetProduct.price} (National Reference MRP)`;
+          }
+        }
         const updatedContext = {
           ...context,
           selectedProduct: targetProduct,
           selectedProductId: targetProduct.id || targetProduct._id,
         };
-        const messageText = `The **${targetProduct.name}** is **₹${targetProduct.price}**.`;
-        const ttsText = `The ${targetProduct.name} is ₹${targetProduct.price}.`;
+        const messageText = `The price for **${targetProduct.name}** is **${priceStr}**.`;
+        const ttsText = `The price for ${targetProduct.name} is ₹${targetProduct.price}.`;
         return {
           type: 'INFORMATION',
           message: messageText,
@@ -769,12 +801,23 @@ export class GeminiService {
       }
 
       if (targetProduct) {
-        const inStock = targetProduct.stock > 0;
-        const reply = inStock ? "Yes, it's currently available." : `Currently ${targetProduct.name} is out of stock.`;
+        let reply = '';
+        if (targetProduct.isCatalogue || String(targetProduct.id || '').startsWith('catalogue_')) {
+          const liveStock = await findLivePharmacyStockForMedicine(targetProduct);
+          if (liveStock && liveStock.stock > 0) {
+            reply = `Yes, **${targetProduct.name}** is available at **${liveStock.pharmacyId?.businessName || 'a partner pharmacy'}** with **${liveStock.stock} units** in stock.`;
+          } else {
+            reply = `**${targetProduct.name}** is listed in the National Medicine Catalogue, but currently no partner pharmacy has verified stock.`;
+          }
+        } else {
+          const inStock = targetProduct.stock > 0;
+          reply = inStock ? `Yes, **${targetProduct.name}** is currently available with **${targetProduct.stock} units** in stock.` : `Currently **${targetProduct.name}** is out of stock.`;
+        }
+
         return {
           type: 'INFORMATION',
           message: reply,
-          tts_text: reply,
+          tts_text: reply.replace(/[*_#`[\]()]/g, ''),
           products: [targetProduct],
           sources: [],
           context: {

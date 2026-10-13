@@ -284,9 +284,9 @@ export const reverseGeocode = async (req, res, next) => {
 export const getPharmacyById = async (req, res, next) => {
   try {
     let pharmacy = null;
-    try {
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
       pharmacy = await Pharmacy.findById(req.params.id);
-    } catch (_) {}
+    }
 
     if (!pharmacy) {
       return res.status(404).json({

@@ -45,15 +45,37 @@ export const handleAIChat = async (req, res, next) => {
 
     // Save assistant message to conversation if user logged in
     if (userId) {
-      await Message.create({
-        conversationId: convId,
-        userId,
-        role: 'assistant',
-        message: aiResponse.message,
-        type: aiResponse.type,
-        products: aiResponse.products || [],
-        sources: aiResponse.sources || [],
-      });
+      try {
+        const sanitizedProducts = (aiResponse.products || []).map((p) => ({
+          _id: p._id ? String(p._id) : (p.id ? String(p.id) : undefined),
+          id: p.id ? String(p.id) : (p._id ? String(p._id) : undefined),
+          rawId: p.rawId ? String(p.rawId) : undefined,
+          name: p.name,
+          genericName: p.genericName,
+          scientificName: p.scientificName,
+          price: typeof p.price === 'number' ? p.price : parseFloat(p.price) || 0,
+          originalPrice: typeof p.originalPrice === 'number' ? p.originalPrice : undefined,
+          discount: p.discount,
+          stock: typeof p.stock === 'number' ? p.stock : 0,
+          expiryDate: p.expiryDate,
+          expiryStatus: p.expiryStatus,
+          category: p.category,
+          image: p.image,
+          isCatalogue: Boolean(p.isCatalogue),
+        }));
+
+        await Message.create({
+          conversationId: convId,
+          userId,
+          role: 'assistant',
+          message: aiResponse.message,
+          type: aiResponse.type,
+          products: sanitizedProducts,
+          sources: aiResponse.sources || [],
+        });
+      } catch (saveErr) {
+        console.warn('[handleAIChat] Could not persist assistant message history:', saveErr.message);
+      }
     }
 
     res.json({

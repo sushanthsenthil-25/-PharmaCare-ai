@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import Medicine from '../models/Medicine.js';
@@ -89,12 +90,16 @@ export const createOrder = async (req, res, next) => {
       const qty = Math.max(1, parseInt(item.qty || 1, 10));
 
       const Model = findProductModel(pType);
-      const product = await Model.findById(pId);
+      let product = null;
+
+      if (pId && mongoose.Types.ObjectId.isValid(String(pId)) && String(pId).length === 24) {
+        product = await Model.findById(pId);
+      }
 
       if (!product) {
         return res.status(404).json({
           success: false,
-          message: `Product ${item.name || pId} not found in catalog`,
+          message: `Product ${item.name || pId} not found in catalog or invalid ID`,
         });
       }
 
@@ -412,6 +417,12 @@ export const getOrderTracking = async (req, res, next) => {
 export const updateOrderStatus = async (req, res, next) => {
   try {
     const { status, etaMinutes, currentLocation } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+      });
+    }
     const order = await Order.findById(req.params.id);
 
     if (!order) {

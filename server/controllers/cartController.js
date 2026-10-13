@@ -1,19 +1,40 @@
+import mongoose from 'mongoose';
 import Cart from '../models/Cart.js';
 import Medicine from '../models/Medicine.js';
 import HealthProduct from '../models/HealthProduct.js';
 import PersonalCareProduct from '../models/PersonalCareProduct.js';
 import { isMedicineExpired } from '../utils/expiry.js';
 import { calculateCart, calculateDeliveryEstimate } from '../services/cartService.js';
+import { findCatalogueMedicineById, findLivePharmacyStockForMedicine } from '../services/medicineSearchService.js';
 
-// Helper to find product across models
+// Helper to find product across models safely without CastErrors
 const findProduct = async (productId, productType) => {
-  if (productType === 'HealthProduct') {
-    return await HealthProduct.findById(productId);
+  if (!productId) return null;
+  const pId = String(productId).trim();
+
+  // Validate ObjectId before querying models expecting an ObjectId
+  if (mongoose.Types.ObjectId.isValid(pId) && pId.length === 24) {
+    if (productType === 'HealthProduct') {
+      return await HealthProduct.findById(pId);
+    }
+    if (productType === 'PersonalCareProduct') {
+      return await PersonalCareProduct.findById(pId);
+    }
+    return await Medicine.findById(pId);
   }
-  if (productType === 'PersonalCareProduct') {
-    return await PersonalCareProduct.findById(productId);
+
+  // If catalogue identifier, check if a partner pharmacy stocks this formulation
+  if (pId.startsWith('catalogue_') || /^\d+$/.test(pId)) {
+    const catDoc = await findCatalogueMedicineById(pId);
+    if (catDoc) {
+      const liveStock = await findLivePharmacyStockForMedicine(catDoc);
+      if (liveStock) {
+        return liveStock;
+      }
+    }
   }
-  return await Medicine.findById(productId);
+
+  return null;
 };
 
 // @desc    Get user's cart with calculated subtotals, delivery fee, discounts, and ETA

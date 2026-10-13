@@ -9,9 +9,8 @@ const orderItemSchema = new mongoose.Schema(
       default: 'Medicine',
     },
     productId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       required: true,
-      refPath: 'items.productType',
     },
     name: {
       type: String,

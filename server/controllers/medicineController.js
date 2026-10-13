@@ -1,7 +1,12 @@
 import mongoose from 'mongoose';
 import Medicine from '../models/Medicine.js';
 import { getExpiryStatus } from '../utils/expiry.js';
-import { searchMedicinesRanked, formatMedicine } from '../services/medicineSearchService.js';
+import {
+  searchMedicinesRanked,
+  formatMedicine,
+  findCatalogueMedicineById,
+  findLivePharmacyStockForMedicine,
+} from '../services/medicineSearchService.js';
 
 // @desc    Get all medicines with search, filter, pagination, sorting
 // @route   GET /api/medicines
@@ -149,28 +154,65 @@ export const searchMedicines = async (req, res) => {
 // @access  Public
 export const getMedicineById = async (req, res) => {
   try {
-    const medicine = await Medicine.findById(req.params.id).lean().maxTimeMS(3000);
-
-    if (!medicine) {
-      return res.status(404).json({
+    const rawId = req.params.id;
+    if (!rawId || !String(rawId).trim()) {
+      return res.status(400).json({
         success: false,
-        message: 'Medicine not found with ID ' + req.params.id,
+        message: 'Medicine ID is required',
       });
     }
 
-    const formatted = formatMedicine(medicine);
+    const id = String(rawId).trim();
 
-    res.json({
-      success: true,
-      medicine: formatted,
+    // 1. If valid 24-character hex ObjectId, check store Medicine first
+    if (mongoose.Types.ObjectId.isValid(id) && id.length === 24) {
+      const medicine = await Medicine.findById(id).lean().maxTimeMS(3000);
+      if (medicine) {
+        return res.json({
+          success: true,
+          medicine: formatMedicine(medicine),
+        });
+      }
+    }
+
+    // 2. If it's a catalogue ID (e.g. catalogue_6714, catalogue_9761, 6714) or not in store Medicine, check catalogue
+    const catalogueMed = await findCatalogueMedicineById(id);
+    if (catalogueMed) {
+      // Cross-reference live pharmacy stock
+      const liveStock = await findLivePharmacyStockForMedicine(catalogueMed);
+      return res.json({
+        success: true,
+        medicine: {
+          ...catalogueMed,
+          livePharmacyItem: liveStock
+            ? {
+                id: liveStock._id.toString(),
+                name: liveStock.name,
+                stock: liveStock.stock,
+                price: liveStock.price,
+                batchNumber: liveStock.batchNumber,
+                expiryDate: liveStock.expiryDate,
+                pharmacy: liveStock.pharmacyId?.businessName || 'Partner Pharmacy',
+              }
+            : null,
+          hasLocalStock: Boolean(liveStock && liveStock.stock > 0),
+          stock: liveStock ? liveStock.stock : 0,
+          isLiveInventory: Boolean(liveStock && liveStock.stock > 0),
+          availabilityStatus: liveStock && liveStock.stock > 0 ? 'IN_STOCK' : 'UNVERIFIED',
+        },
+      });
+    }
+
+    // 3. Not found
+    return res.status(404).json({
+      success: false,
+      message: `Medicine not found with ID ${id}`,
     });
   } catch (error) {
-    return res.status(503).json({
+    console.error('[getMedicineById] Error:', error.message);
+    return res.status(500).json({
       success: false,
-      error: {
-        code: 'DATABASE_DISCONNECTED',
-        message: 'Database query failed or database is unavailable.',
-      },
+      message: 'Failed to retrieve medicine details.',
     });
   }
 };
@@ -199,7 +241,7 @@ export const getMedicineAvailability = async (req, res) => {
     let searchName = '';
 
     // Check if valid ObjectId for store Medicine
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (mongoose.Types.ObjectId.isValid(id) && String(id).length === 24) {
       targetMed = await Medicine.findById(id).populate('pharmacyId');
       if (targetMed) {
         searchName = targetMed.genericName || targetMed.name;
@@ -208,23 +250,10 @@ export const getMedicineAvailability = async (req, res) => {
 
     // If not found in store Medicine, check medicine_catalogue
     if (!targetMed) {
-      const cleanSourceId = String(id).replace(/^catalogue_/, '');
-      if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
-        const col = mongoose.connection.db.collection('medicine_catalogue');
-        const catDoc = await col.findOne({ source_id: cleanSourceId });
-        if (catDoc) {
-          targetMed = {
-            id: `catalogue_${catDoc.source_id}`,
-            _id: `catalogue_${catDoc.source_id}`,
-            name: catDoc.name,
-            genericName: Array.isArray(catDoc.composition) && catDoc.composition[0] ? catDoc.composition[0] : catDoc.name,
-            dosageForm: catDoc.dosage_form || 'Tablet',
-            manufacturer: catDoc.manufacturer_name,
-            price: catDoc.price_inr || 0,
-            isCatalogue: true,
-          };
-          searchName = (Array.isArray(catDoc.composition) && catDoc.composition[0]) || catDoc.name;
-        }
+      const catDoc = await findCatalogueMedicineById(id);
+      if (catDoc) {
+        targetMed = catDoc;
+        searchName = catDoc.genericName || catDoc.name;
       }
     }
 

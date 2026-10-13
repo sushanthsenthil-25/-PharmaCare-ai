@@ -554,15 +554,20 @@ router.get('/', async (req, res) => {
 // @desc    Get single catalogue medicine monograph
 router.get('/:id', async (req, res) => {
   try {
-    const itemId = String(req.params.id).trim();
+    const rawId = String(req.params.id).trim();
+    const itemId = rawId.replace(/^catalogue_/, '').trim();
     const col = getCatalogueCollection();
 
     if (col) {
       try {
-        let query = { source_id: itemId };
-        if (ObjectId.isValid(itemId)) {
-          query = { $or: [{ source_id: itemId }, { _id: new ObjectId(itemId) }] };
+        const orConditions = [{ source_id: itemId }, { source_id: rawId }];
+        if (/^\d+$/.test(itemId)) {
+          orConditions.push({ source_id: Number(itemId) });
         }
+        if (ObjectId.isValid(itemId) && itemId.length === 24) {
+          orConditions.push({ _id: new ObjectId(itemId) });
+        }
+        const query = { $or: orConditions };
 
         const doc = await col.findOne(query);
         if (doc) {

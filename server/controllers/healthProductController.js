@@ -67,6 +67,12 @@ export const getHealthProducts = async (req, res, next) => {
 // @access  Public
 export const getHealthProductById = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id) || String(req.params.id).length !== 24) {
+      return res.status(404).json({
+        success: false,
+        message: 'Health product not found with ID ' + req.params.id,
+      });
+    }
     const product = await HealthProduct.findById(req.params.id).lean();
 
     if (!product) {

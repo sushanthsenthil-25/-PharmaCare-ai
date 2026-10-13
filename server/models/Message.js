@@ -1,5 +1,26 @@
 import mongoose from 'mongoose';
 
+const messageProductSchema = new mongoose.Schema(
+  {
+    _id: { type: String, required: false },
+    id: String,
+    rawId: String,
+    name: String,
+    genericName: String,
+    scientificName: String,
+    price: Number,
+    originalPrice: Number,
+    discount: String,
+    stock: Number,
+    expiryDate: Date,
+    expiryStatus: String,
+    category: String,
+    image: String,
+    isCatalogue: Boolean,
+  },
+  { _id: false }
+);
+
 const messageSchema = new mongoose.Schema(
   {
     conversationId: {
@@ -26,22 +47,7 @@ const messageSchema = new mongoose.Schema(
       enum: ['INFORMATION', 'PRODUCT_SEARCH', 'PRODUCT_RESULTS', 'ACTION', 'SYSTEM'],
       default: 'INFORMATION',
     },
-    products: [
-      {
-        id: String,
-        name: String,
-        genericName: String,
-        scientificName: String,
-        price: Number,
-        originalPrice: Number,
-        discount: String,
-        stock: Number,
-        expiryDate: Date,
-        expiryStatus: String,
-        category: String,
-        image: String,
-      },
-    ],
+    products: [messageProductSchema],
     sources: [
       {
         title: String,
