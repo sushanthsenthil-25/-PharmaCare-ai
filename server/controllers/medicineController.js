@@ -1,15 +1,6 @@
 import Medicine from '../models/Medicine.js';
 import { getExpiryStatus } from '../utils/expiry.js';
 import { searchMedicinesRanked, formatMedicine } from '../services/medicineSearchService.js';
-import { EXACT_20_MEDICINES } from '../seed.js';
-
-const FALLBACK_MEDICINES = EXACT_20_MEDICINES.map((m, idx) => ({
-  ...m,
-  id: `med_fallback_${idx + 1}`,
-  _id: `med_fallback_${idx + 1}`,
-  expiryStatus: 'VALID',
-  isExpired: false,
-}));
 
 // @desc    Get all medicines with search, filter, pagination, sorting
 // @route   GET /api/medicines
@@ -160,13 +151,6 @@ export const getMedicineById = async (req, res) => {
     const medicine = await Medicine.findById(req.params.id).lean().maxTimeMS(3000);
 
     if (!medicine) {
-      const fallbackItem = FALLBACK_MEDICINES.find((m) => m.id === req.params.id || m._id === req.params.id);
-      if (fallbackItem) {
-        return res.json({
-          success: true,
-          medicine: fallbackItem,
-        });
-      }
       return res.status(404).json({
         success: false,
         message: 'Medicine not found with ID ' + req.params.id,
@@ -180,11 +164,12 @@ export const getMedicineById = async (req, res) => {
       medicine: formatted,
     });
   } catch (error) {
-    const fallbackItem = FALLBACK_MEDICINES.find((m) => m.id === req.params.id || m._id === req.params.id) || FALLBACK_MEDICINES[0];
-    res.json({
-      success: true,
-      medicine: fallbackItem,
-      fallback: true,
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'DATABASE_DISCONNECTED',
+        message: 'Database query failed or database is unavailable.',
+      },
     });
   }
 };
@@ -198,30 +183,27 @@ export const getMedicineAvailability = async (req, res) => {
     const lat = parseFloat(req.query.lat) || 12.9716;
     const lng = parseFloat(req.query.lng) || 77.5946;
 
-    let targetMed = null;
-    try {
-      targetMed = await Medicine.findById(id);
-    } catch (_) {}
+    const targetMed = await Medicine.findById(id);
 
     if (!targetMed) {
-      targetMed = FALLBACK_MEDICINES.find((m) => m.id === id || m._id === id) || FALLBACK_MEDICINES[0];
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine not found with ID ' + id,
+      });
     }
 
     // Find all matching in-stock medicines with same name/genericName
     const searchName = targetMed.genericName || targetMed.name;
     const now = new Date();
 
-    let matchingMeds = [];
-    try {
-      matchingMeds = await Medicine.find({
-        $or: [
-          { name: new RegExp(searchName, 'i') },
-          { genericName: new RegExp(searchName, 'i') },
-        ],
-        stock: { $gt: 0 },
-        expiryDate: { $gt: now },
-      }).populate('pharmacyId');
-    } catch (_) {}
+    const matchingMeds = await Medicine.find({
+      $or: [
+        { name: new RegExp(searchName, 'i') },
+        { genericName: new RegExp(searchName, 'i') },
+      ],
+      stock: { $gt: 0 },
+      expiryDate: { $gt: now },
+    }).populate('pharmacyId');
 
     res.json({
       success: true,
@@ -243,11 +225,12 @@ export const getMedicineAvailability = async (req, res) => {
       })),
     });
   } catch (error) {
-    res.json({
-      success: true,
-      medicine: FALLBACK_MEDICINES[0],
-      availabilityCount: 1,
-      availablePharmacies: [],
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'DATABASE_DISCONNECTED',
+        message: 'Database query failed or database is unavailable.',
+      },
     });
   }
 };
