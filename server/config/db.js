@@ -8,10 +8,15 @@ try {
   // Keep system defaults if DNS override fails
 }
 
+// Configure Mongoose for serverless execution: disable command buffering
+mongoose.set('bufferCommands', false);
+
 const LOCAL_DEV_URI = 'mongodb://127.0.0.1:27017/pharmacare';
 
-let isConnected = false;
-let cachedPromise = null;
+// Maintain cached connection promise on global across serverless invocations
+if (!global._mongooseConn) {
+  global._mongooseConn = { conn: null, promise: null };
+}
 
 /**
  * Redact username and password from MongoDB URI for safe logging
@@ -24,22 +29,39 @@ export const sanitizeUri = (uri) => {
 export const isDbConnected = () => mongoose.connection.readyState === 1;
 
 /**
- * Connect to MongoDB once during application startup.
- * Explicitly distinguishes local development from production.
+ * Perform a real MongoDB ping command to verify end-to-end database connectivity
+ */
+export const pingDB = async () => {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+    return false;
+  }
+  try {
+    const res = await mongoose.connection.db.admin().ping();
+    return !!(res && (res.ok === 1 || res.ok === true));
+  } catch (_) {
+    return false;
+  }
+};
+
+/**
+ * Connect to MongoDB with serverless connection pooling and caching.
+ * Reuses existing active connections, awaits in-flight promises, and handles retries.
  */
 export const connectDB = async () => {
   if (mongoose.connection.readyState === 1) {
-    isConnected = true;
+    global._mongooseConn.conn = mongoose.connection;
     return mongoose.connection;
   }
 
-  if (cachedPromise) {
+  if (global._mongooseConn.promise) {
     try {
-      await cachedPromise;
-      isConnected = mongoose.connection.readyState === 1;
-      return mongoose.connection;
+      await global._mongooseConn.promise;
+      if (mongoose.connection.readyState === 1) {
+        global._mongooseConn.conn = mongoose.connection;
+        return mongoose.connection;
+      }
     } catch (_) {
-      cachedPromise = null;
+      global._mongooseConn.promise = null;
     }
   }
 
@@ -65,36 +87,38 @@ export const connectDB = async () => {
   }
 
   try {
-    cachedPromise = mongoose.connect(targetUri, {
+    global._mongooseConn.promise = mongoose.connect(targetUri, {
       dbName: 'pharmacare',
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 5000,
+      bufferCommands: false,
     });
-    const conn = await cachedPromise;
-    isConnected = true;
+    const conn = await global._mongooseConn.promise;
+    global._mongooseConn.conn = conn.connection;
     console.log(`[MongoDB Connected]: ${conn.connection.host} (${sanitizeUri(targetUri)})`);
     return conn;
   } catch (err) {
-    cachedPromise = null;
-    isConnected = false;
+    global._mongooseConn.promise = null;
+    global._mongooseConn.conn = null;
     console.error(`[MongoDB Error]: Connection failed to ${sanitizeUri(targetUri)}: ${err.message}`);
 
     // In local development, if remote Atlas failed, attempt local MongoDB fallback
     if (!isProduction && targetUri !== LOCAL_DEV_URI) {
       console.log(`[MongoDB Info]: Attempting local development fallback at ${LOCAL_DEV_URI}...`);
       try {
-        cachedPromise = mongoose.connect(LOCAL_DEV_URI, {
+        global._mongooseConn.promise = mongoose.connect(LOCAL_DEV_URI, {
           dbName: 'pharmacare',
           serverSelectionTimeoutMS: 3000,
           connectTimeoutMS: 3000,
+          bufferCommands: false,
         });
-        const localConn = await cachedPromise;
-        isConnected = true;
+        const localConn = await global._mongooseConn.promise;
+        global._mongooseConn.conn = localConn.connection;
         console.log(`[MongoDB Connected]: Local development database connected at ${localConn.connection.host}`);
         return localConn;
       } catch (localErr) {
-        cachedPromise = null;
-        isConnected = false;
+        global._mongooseConn.promise = null;
+        global._mongooseConn.conn = null;
         console.error(`[MongoDB Error]: Local fallback also failed: ${localErr.message}`);
       }
     }
@@ -110,8 +134,10 @@ export const closeDB = async () => {
   try {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
-      isConnected = false;
-      cachedPromise = null;
+      if (global._mongooseConn) {
+        global._mongooseConn.conn = null;
+        global._mongooseConn.promise = null;
+      }
       console.log('[MongoDB]: Connection closed gracefully.');
     }
   } catch (err) {

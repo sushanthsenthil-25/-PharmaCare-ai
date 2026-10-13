@@ -6,11 +6,8 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
 import mongoose from 'mongoose';
-import { connectDB, closeDB } from './config/db.js';
+import { connectDB, closeDB, pingDB } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
-
-// Configure Mongoose buffer timeout for serverless environment
-mongoose.set('bufferTimeoutMS', 8000);
 
 // Route imports
 import authRoutes from './routes/authRoutes.js';
@@ -29,8 +26,26 @@ import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
 
-// Initialise database connection once at startup
-connectDB();
+// Non-blocking initial database connection attempt
+connectDB().catch(() => {});
+
+// Middleware to await database connection and ensure availability for DB-dependent routes
+export const requireDb = async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch (_) {}
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'DATABASE_DISCONNECTED',
+        message: 'Database is currently unavailable. Please try again shortly.',
+      },
+    });
+  }
+  next();
+};
 
 const app = express();
 
@@ -120,28 +135,43 @@ app.get('/', (req, res) => {
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Official Health Check Endpoint
-app.get('/api/health', (req, res) => {
-  const dbState = mongoose.connection.readyState;
-  res.json({
-    success: true,
-    status: 'online',
-    message: 'PharmaCare AI backend is running',
+// Official Health Check Endpoint: performs a real database ping
+app.get('/api/health', async (req, res) => {
+  try {
+    await connectDB();
+  } catch (_) {}
+
+  const connected = mongoose.connection.readyState === 1;
+  const pingOk = await pingDB();
+  const isHealthy = connected && pingOk;
+
+  res.status(isHealthy ? 200 : 503).json({
+    success: isHealthy,
+    status: isHealthy ? 'online' : 'degraded',
+    message: isHealthy ? 'PharmaCare AI backend is running' : 'PharmaCare AI backend is degraded (database unavailable)',
     environment: process.env.NODE_ENV || 'production',
-    database: dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected',
+    database: isHealthy ? 'connected' : 'disconnected',
+    readyState: mongoose.connection.readyState,
+    ping: pingOk,
     timestamp: new Date().toISOString(),
     version: '1.0.0',
   });
 });
 
-// Database Health Check
+// Database Health Check: verifies active connection and ping
 app.get('/api/health/db', async (req, res) => {
-  const dbState = mongoose.connection.readyState;
-  const connected = dbState === 1;
-  res.status(connected ? 200 : 503).json({
-    success: connected,
-    database: connected ? 'connected' : 'disconnected',
-    readyState: dbState,
+  try {
+    await connectDB();
+  } catch (_) {}
+
+  const connected = mongoose.connection.readyState === 1;
+  const pingOk = await pingDB();
+
+  res.status(connected && pingOk ? 200 : 503).json({
+    success: connected && pingOk,
+    database: connected && pingOk ? 'connected' : 'disconnected',
+    readyState: mongoose.connection.readyState,
+    ping: pingOk,
     timestamp: new Date().toISOString(),
   });
 });
@@ -159,15 +189,15 @@ app.get('/api/health/ai', (req, res) => {
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/medicines', medicineRoutes);
-app.use('/api/health-products', healthProductRoutes);
-app.use('/api/personal-care', personalCareRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/medicines', requireDb, medicineRoutes);
+app.use('/api/health-products', requireDb, healthProductRoutes);
+app.use('/api/personal-care', requireDb, personalCareRoutes);
+app.use('/api/cart', requireDb, cartRoutes);
+app.use('/api/orders', requireDb, orderRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/conversations', conversationRoutes);
-app.use('/api/pharmacies', pharmacyRoutes);
-app.use('/api/owner', ownerRoutes);
+app.use('/api/pharmacies', requireDb, pharmacyRoutes);
+app.use('/api/owner', requireDb, ownerRoutes);
 
 // Dashboard Summary & Alerts Compatibility Routes
 app.get('/api/dashboard/summary', async (req, res) => {
@@ -267,8 +297,8 @@ app.get('/api/alerts', async (req, res) => {
 
 // Legacy / Alternative route support for frontend compatibility
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/products', medicineRoutes);
-app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/products', requireDb, medicineRoutes);
+app.use('/api/v1/orders', requireDb, orderRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/medicine-catalogue', medicineCatalogueRoutes);
 app.use('/api/medicine-catalogue', medicineCatalogueRoutes);

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import PersonalCareProduct from '../models/PersonalCareProduct.js';
 
 // @desc    Get all personal care products
@@ -48,6 +49,15 @@ export const getPersonalCareProducts = async (req, res, next) => {
       items: formatted,
     });
   } catch (error) {
+    if (mongoose.connection.readyState !== 1 || error.name === 'MongooseError') {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database query failed or database is unavailable.',
+        },
+      });
+    }
     next(error);
   }
 };
@@ -74,6 +84,15 @@ export const getPersonalCareById = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (mongoose.connection.readyState !== 1 || error.name === 'MongooseError') {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database query failed or database is unavailable.',
+        },
+      });
+    }
     next(error);
   }
 };

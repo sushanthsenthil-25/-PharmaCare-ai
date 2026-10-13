@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
@@ -143,26 +144,38 @@ export const loginUser = async (req, res, next) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
+    // Instant demo login without database dependency
+    if (DEMO_FALLBACKS[cleanEmail]) {
+      const demoUser = DEMO_FALLBACKS[cleanEmail];
+      const token = generateToken(demoUser._id);
+      return res.json({
+        success: true,
+        token,
+        access_token: token,
+        user: formatUserResponse(demoUser),
+      });
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database is currently unavailable. Please try Quick Demo Login or try again shortly.',
+        },
+      });
+    }
+
     let user = null;
     try {
       user = await User.findOne({ email: cleanEmail }).select('+password');
     } catch (dbErr) {
-      console.warn('[Auth Notice] DB query buffered/failed:', dbErr.message);
-      if (DEMO_FALLBACKS[cleanEmail]) {
-        const demoUser = DEMO_FALLBACKS[cleanEmail];
-        const token = generateToken(demoUser._id);
-        return res.json({
-          success: true,
-          token,
-          access_token: token,
-          user: formatUserResponse(demoUser),
-        });
-      }
+      console.warn('[Auth Notice] DB query failed:', dbErr.message);
       return res.status(503).json({
         success: false,
         error: {
-          code: 'DATABASE_CONNECTING',
-          message: 'Database is connecting. Please try Quick Demo Login or try again in a few seconds.',
+          code: 'DATABASE_DISCONNECTED',
+          message: 'Database connection failed. Please try Quick Demo Login or try again shortly.',
         },
       });
     }
@@ -215,22 +228,27 @@ export const loginUser = async (req, res, next) => {
 // @access  Private
 export const getMe = async (req, res, next) => {
   try {
+    // Instant demo fallback resolution
+    const demoUser = Object.values(DEMO_FALLBACKS).find(
+      (d) => d._id === req.user._id || d._id === req.user.id || d.email === req.user.email
+    );
+    if (demoUser) {
+      return res.json({
+        success: true,
+        user: formatUserResponse(demoUser),
+      });
+    }
+
     let user = null;
-    try {
-      user = await User.findById(req.user._id);
-    } catch (dbErr) {
-      console.warn('[Auth Notice] getMe DB query error:', dbErr.message);
+    if (mongoose.connection.readyState === 1) {
+      try {
+        user = await User.findById(req.user._id);
+      } catch (dbErr) {
+        console.warn('[Auth Notice] getMe DB query error:', dbErr.message);
+      }
     }
 
     if (!user) {
-      // Check demo fallbacks by ID
-      const demoUser = Object.values(DEMO_FALLBACKS).find((d) => d._id === req.user._id || d._id === req.user.id);
-      if (demoUser) {
-        return res.json({
-          success: true,
-          user: formatUserResponse(demoUser),
-        });
-      }
       return res.status(404).json({
         success: false,
         error: {
