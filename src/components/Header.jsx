@@ -158,7 +158,11 @@ export const Header = () => {
             <div className="flex items-center justify-between pb-2 border-b border-outline-variant/15">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[20px]">notifications_active</span>
-                <h3 className="font-headline-sm text-sm font-bold text-primary">Live Clinical Alerts</h3>
+                <h3 className="font-headline-sm text-sm font-bold text-primary">
+                  {user?.role === 'OWNER' || user?.role === 'PHARMACIST' || user?.role === 'ADMIN'
+                    ? 'Pharmacy Clinical Alerts'
+                    : 'Notifications & Updates'}
+                </h3>
               </div>
               <button 
                 onClick={() => setShowAlertsModal(false)}
@@ -182,7 +186,15 @@ export const Header = () => {
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-primary">{alert.title}</span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                        alert.alert_type === 'CRITICAL'
+                          ? 'bg-rose-100 text-rose-800'
+                          : alert.alert_type === 'SUCCESS'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : alert.alert_type === 'ACTION'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
                         {alert.alert_type}
                       </span>
                     </div>
@@ -194,7 +206,9 @@ export const Header = () => {
                 ))
               ) : (
                 <div className="p-6 text-center text-xs text-on-surface-variant">
-                  No active clinical alerts at this time.
+                  {user?.role === 'OWNER' || user?.role === 'PHARMACIST' || user?.role === 'ADMIN'
+                    ? 'No active inventory alerts for your pharmacy at this time.'
+                    : 'No active notifications or order updates at this time.'}
                 </div>
               )}
             </div>

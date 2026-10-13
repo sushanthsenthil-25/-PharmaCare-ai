@@ -126,14 +126,23 @@ export const AppProvider = ({ children }) => {
     try {
       const data = await api.alerts.list();
       if (Array.isArray(data)) {
-        setAlerts(data);
-        const unread = data.filter((a) => !a.is_read).length;
+        const storedUser = api.getUser();
+        const role = (storedUser?.role || user?.role || '').toUpperCase();
+        // Client-side guard: customers must never display owner stock or expiry alerts
+        const filtered = data.filter((item) => {
+          if (role === 'USER') {
+            return !item.id?.startsWith('exp_') && !item.id?.startsWith('stk_') && !item.id?.startsWith('alt_');
+          }
+          return true;
+        });
+        setAlerts(filtered);
+        const unread = filtered.filter((a) => !a.is_read).length;
         setUnreadAlertsCount(unread);
       }
     } catch {
       // Graceful fallback
     }
-  }, []);
+  }, [user?.role]);
 
   const loadDashboardSummary = useCallback(async () => {
     try {

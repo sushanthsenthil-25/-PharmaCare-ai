@@ -114,25 +114,25 @@ export const optionalAuth = async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'pharmacare-ai-super-secret-jwt-key-2026-secure');
-      if (decoded.id === '65f1a2b3c4d5e6f7a8b9c0d2' || decoded.id === 'usr_default') {
+      if (decoded.id === '6ace697088103256f918765d' || decoded.id === '65f1a2b3c4d5e6f7a8b9c0d2' || decoded.id === 'usr_default') {
         req.user = {
-          _id: '65f1a2b3c4d5e6f7a8b9c0d2',
-          id: '65f1a2b3c4d5e6f7a8b9c0d2',
-          name: 'Demo Pharmacy Owner',
-          email: 'owner@pharmacare.ai',
+          _id: '6ace697088103256f918765d',
+          id: '6ace697088103256f918765d',
+          name: 'PharmaCare Pharmacy Owner',
+          email: 'pharmacare@gmail.com',
           role: 'OWNER',
           businessName: 'PharmaCare Central Pharmacy',
-          phone: '+91 98765 43210',
-          address: 'Indiranagar, Bangalore 560038',
+          phone: '+91 98765 00000',
+          address: 'Koramangala, Bangalore 560034',
         };
-      } else if (decoded.id === '65f1a2b3c4d5e6f7a8b9c0d1') {
+      } else if (decoded.id === '6ace697088103256f918765a' || decoded.id === '65f1a2b3c4d5e6f7a8b9c0d1') {
         req.user = {
-          _id: '65f1a2b3c4d5e6f7a8b9c0d1',
-          id: '65f1a2b3c4d5e6f7a8b9c0d1',
-          name: 'Demo Pharmacist',
-          email: 'demo@pharmacare.ai',
+          _id: '6ace697088103256f918765a',
+          id: '6ace697088103256f918765a',
+          name: 'Sushanth Senthil',
+          email: 'sushanth@gmail.com',
           role: 'USER',
-          businessName: 'PharmaCare Central Pharmacy',
+          businessName: 'PharmaCare Customer',
           phone: '+91 98765 43210',
           address: 'Indiranagar, Bangalore 560038',
         };

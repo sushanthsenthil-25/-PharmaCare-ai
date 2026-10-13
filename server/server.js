@@ -29,6 +29,8 @@ import { seedDemoOwnerInventory } from './scripts/seed_demo_owner_inventory.js';
 // Models for dashboard / alerts compatibility
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
+import Pharmacy from './models/Pharmacy.js';
+import { optionalAuth } from './middleware/auth.js';
 
 // Non-blocking initial database connection attempt and demo user & inventory seed
 connectDB()
@@ -217,97 +219,224 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/pharmacies', requireDb, pharmacyRoutes);
 app.use('/api/owner', requireDb, ownerRoutes);
 
-// Dashboard Summary & Alerts Compatibility Routes
-app.get('/api/dashboard/summary', async (req, res) => {
+// Dashboard Summary & Alerts Compatibility Routes (Strict Role Separation)
+app.get('/api/dashboard/summary', optionalAuth, async (req, res) => {
   try {
-    const [productCount, activeOrdersCount, expiredCount] = await Promise.all([
-      Medicine.countDocuments().maxTimeMS(2000),
-      Order.countDocuments({ status: { $in: ['PLACED', 'CONFIRMED', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] } }).maxTimeMS(2000),
-      Medicine.countDocuments({ expiryDate: { $lt: new Date() } }).maxTimeMS(2000),
-    ]);
+    const userRole = (req.user?.role || '').toUpperCase();
 
-    res.json({
+    // 1. Pharmacy Owner: Scoped strictly to owner's pharmacy
+    if (userRole === 'OWNER' || userRole === 'PHARMACIST' || userRole === 'ADMIN') {
+      let pharmacy = await Pharmacy.findOne({ ownerId: req.user._id }).maxTimeMS(2000).catch(() => null);
+      if (!pharmacy) {
+        pharmacy = await Pharmacy.findOne().maxTimeMS(2000).catch(() => null);
+      }
+      const pharmacyFilter = pharmacy ? { pharmacyId: pharmacy._id } : {};
+      const ownerMedIds = pharmacy ? await Medicine.find(pharmacyFilter).distinct('_id').maxTimeMS(2000).catch(() => []) : [];
+      const ownerOrderFilter = pharmacy ? {
+        $or: [
+          { pharmacyId: pharmacy._id },
+          ...(ownerMedIds.length > 0 ? [{ 'items.productId': { $in: ownerMedIds } }] : []),
+        ],
+      } : {};
+
+      const [productCount, activeOrdersCount, expiredCount, lowStockCount] = await Promise.all([
+        Medicine.countDocuments(pharmacyFilter).maxTimeMS(2000).catch(() => 0),
+        Order.countDocuments({
+          ...ownerOrderFilter,
+          status: { $in: ['PLACED', 'CONFIRMED', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+        }).maxTimeMS(2000).catch(() => 0),
+        Medicine.countDocuments({ ...pharmacyFilter, expiryDate: { $lt: new Date() } }).maxTimeMS(2000).catch(() => 0),
+        Medicine.countDocuments({ ...pharmacyFilter, stock: { $lte: 10 } }).maxTimeMS(2000).catch(() => 0),
+      ]);
+
+      return res.json({
+        success: true,
+        product_count: productCount || 0,
+        active_orders: activeOrdersCount || 0,
+        unread_alerts: (expiredCount + lowStockCount) || 0,
+      });
+    }
+
+    // 2. Customer: Scoped strictly to authenticated customer's own orders
+    if (userRole === 'USER') {
+      const [productCount, activeOrdersCount] = await Promise.all([
+        Medicine.countDocuments().maxTimeMS(2000).catch(() => 10),
+        Order.countDocuments({
+          userId: req.user._id,
+          status: { $in: ['PLACED', 'CONFIRMED', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+        }).maxTimeMS(2000).catch(() => 0),
+      ]);
+
+      return res.json({
+        success: true,
+        product_count: productCount || 10,
+        active_orders: activeOrdersCount || 0,
+        unread_alerts: activeOrdersCount || 0,
+      });
+    }
+
+    // 3. Unauthenticated Visitors
+    const productCount = await Medicine.countDocuments().maxTimeMS(2000).catch(() => 10);
+    return res.json({
       success: true,
       product_count: productCount || 10,
-      active_orders: activeOrdersCount || 0,
-      unread_alerts: expiredCount > 0 ? expiredCount : 2,
+      active_orders: 0,
+      unread_alerts: 0,
     });
   } catch (err) {
-    // Return resilient fallback data during connection initialization
     res.json({
       success: true,
-      product_count: 12,
-      active_orders: 1,
-      unread_alerts: 2,
+      product_count: 10,
+      active_orders: 0,
+      unread_alerts: 0,
       fallback: true,
     });
   }
 });
 
-app.get('/api/alerts', async (req, res) => {
+app.get('/api/alerts', optionalAuth, async (req, res) => {
   try {
-    // Dynamically calculate stock and expiry alerts from real database
-    const [expiredMeds, lowStockMeds] = await Promise.all([
-      Medicine.find({ expiryDate: { $lt: new Date() } }).limit(5).lean().maxTimeMS(2000),
-      Medicine.find({ stock: { $lte: 10 } }).limit(5).lean().maxTimeMS(2000),
-    ]);
+    const userRole = (req.user?.role || '').toUpperCase();
 
-    const alerts = [
-      ...expiredMeds.map((m) => ({
-        id: `exp_${m._id}`,
-        title: `Batch Expired: ${m.name}`,
-        alert_type: 'CRITICAL',
-        message: `Batch ${m.batchNumber || 'EX-901'} has expired on ${new Date(m.expiryDate).toLocaleDateString()}. Purchase has been prevented by AI safety.`,
-        is_read: false,
-        created_at: m.updatedAt || new Date().toISOString(),
-      })),
-      ...lowStockMeds.map((m) => ({
-        id: `stk_${m._id}`,
-        title: `Low Stock Alert: ${m.name}`,
-        alert_type: 'WARNING',
-        message: `Only ${m.stock} units remaining in certified inventory. Auto-reorder recommended.`,
-        is_read: false,
-        created_at: m.updatedAt || new Date().toISOString(),
-      })),
-    ];
+    // 1. Pharmacy Owner: Low stock, expired batches, and new incoming orders for their pharmacy
+    if (userRole === 'OWNER' || userRole === 'PHARMACIST' || userRole === 'ADMIN') {
+      let pharmacy = await Pharmacy.findOne({ ownerId: req.user._id }).maxTimeMS(2000).catch(() => null);
+      if (!pharmacy) {
+        pharmacy = await Pharmacy.findOne().maxTimeMS(2000).catch(() => null);
+      }
+      const pharmacyFilter = pharmacy ? { pharmacyId: pharmacy._id } : {};
+      const ownerMedIds = pharmacy ? await Medicine.find(pharmacyFilter).distinct('_id').maxTimeMS(2000).catch(() => []) : [];
+      const ownerOrderFilter = pharmacy ? {
+        $or: [
+          { pharmacyId: pharmacy._id },
+          ...(ownerMedIds.length > 0 ? [{ 'items.productId': { $in: ownerMedIds } }] : []),
+        ],
+      } : {};
 
-    res.json({
-      success: true,
-      count: alerts.length,
-      alerts: alerts.length > 0 ? alerts : [
-        {
-          id: 'alt_demo_1',
-          title: 'AI Cold-Chain Advisory',
-          alert_type: 'INFO',
-          message: 'All temperature-sensitive insulin & vaccine batches are verified within safe storage ranges (2°C - 8°C).',
+      const [expiredMeds, lowStockMeds, pendingOrders] = await Promise.all([
+        Medicine.find({ ...pharmacyFilter, expiryDate: { $lt: new Date() } }).limit(10).lean().maxTimeMS(2000).catch(() => []),
+        Medicine.find({ ...pharmacyFilter, stock: { $lte: 10 } }).limit(10).lean().maxTimeMS(2000).catch(() => []),
+        Order.find({
+          ...ownerOrderFilter,
+          status: { $in: ['PLACED', 'CONFIRMED'] },
+        }).sort({ createdAt: -1 }).limit(5).lean().maxTimeMS(2000).catch(() => []),
+      ]);
+
+      const alerts = [
+        ...pendingOrders.map((ord) => ({
+          id: `ord_pending_${ord._id}`,
+          title: `New Order: #${ord.orderNumber}`,
+          alert_type: 'ACTION',
+          message: `Order #${ord.orderNumber} for ₹${ord.total} received and requires dispatch preparation.`,
           is_read: false,
-          created_at: new Date().toISOString(),
+          created_at: ord.createdAt || new Date().toISOString(),
+        })),
+        ...expiredMeds.map((m) => ({
+          id: `exp_${m._id}`,
+          title: `Batch Expired: ${m.name}`,
+          alert_type: 'CRITICAL',
+          message: `Batch ${m.batchNumber || 'EX-901'} expired on ${new Date(m.expiryDate).toLocaleDateString()}. AI safety protocol has blocked sale.`,
+          is_read: false,
+          created_at: m.updatedAt || new Date().toISOString(),
+        })),
+        ...lowStockMeds.map((m) => ({
+          id: `stk_${m._id}`,
+          title: `Low Stock Alert: ${m.name}`,
+          alert_type: 'WARNING',
+          message: `Only ${m.stock} units remaining in certified inventory. Auto-reorder recommended.`,
+          is_read: false,
+          created_at: m.updatedAt || new Date().toISOString(),
+        })),
+      ];
+
+      return res.json({
+        success: true,
+        count: alerts.length,
+        alerts,
+      });
+    }
+
+    // 2. Customer: Notifications strictly scoped to customer's own orders
+    if (userRole === 'USER') {
+      const customerOrders = await Order.find({ userId: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean()
+        .maxTimeMS(2000)
+        .catch(() => []);
+
+      const alerts = customerOrders.map((ord) => {
+        let title = `Order Status: #${ord.orderNumber}`;
+        let alertType = 'INFO';
+        let message = `Order #${ord.orderNumber} is currently ${ord.status}.`;
+
+        switch (ord.status) {
+          case 'PLACED':
+            title = `Order Placed: #${ord.orderNumber}`;
+            alertType = 'INFO';
+            message = `Your order #${ord.orderNumber} (₹${ord.total}) has been placed and is being verified.`;
+            break;
+          case 'CONFIRMED':
+            title = `Order Confirmed: #${ord.orderNumber}`;
+            alertType = 'INFO';
+            message = `Your order #${ord.orderNumber} has been verified and confirmed by the licensed pharmacy.`;
+            break;
+          case 'PREPARING':
+          case 'PACKED':
+            title = `Order Packed: #${ord.orderNumber}`;
+            alertType = 'INFO';
+            message = `Your prescription medicines for order #${ord.orderNumber} have been safely packed.`;
+            break;
+          case 'SHIPPED':
+          case 'OUT_FOR_DELIVERY':
+            title = `Out for Delivery: #${ord.orderNumber}`;
+            alertType = 'WARNING';
+            message = `Order #${ord.orderNumber} is out for delivery with ${ord.riderName || 'delivery partner'}. ETA: ${ord.estimatedDeliveryText || '30-45 mins'}.`;
+            break;
+          case 'DELIVERED':
+            title = `Order Delivered: #${ord.orderNumber}`;
+            alertType = 'SUCCESS';
+            message = `Order #${ord.orderNumber} was successfully delivered. Thank you for choosing PharmaCare AI.`;
+            break;
+          case 'CANCELLED':
+            title = `Order Cancelled: #${ord.orderNumber}`;
+            alertType = 'CRITICAL';
+            message = `Order #${ord.orderNumber} has been cancelled.`;
+            break;
+          default:
+            title = `Order Update: #${ord.orderNumber}`;
+            alertType = 'INFO';
+            message = `Order #${ord.orderNumber} status updated to ${ord.status}.`;
         }
-      ],
+
+        return {
+          id: `cust_ord_${ord._id}_${ord.status.toLowerCase()}`,
+          title,
+          alert_type: alertType,
+          message,
+          is_read: false,
+          created_at: ord.updatedAt || ord.createdAt || new Date().toISOString(),
+        };
+      });
+
+      return res.json({
+        success: true,
+        count: alerts.length,
+        alerts,
+      });
+    }
+
+    // 3. Unauthenticated Visitors: 0 alerts, empty state
+    return res.json({
+      success: true,
+      count: 0,
+      alerts: [],
     });
   } catch (err) {
-    // Resilient fallback alerts
     res.json({
       success: true,
-      count: 2,
-      alerts: [
-        {
-          id: 'alt_1',
-          title: 'Batch Expiry Notice: Amoxicillin Trihydrate',
-          alert_type: 'CRITICAL',
-          message: 'Batch AMX-2023-901 has reached expiry. Dispensation blocked by AI Safety Protocol.',
-          is_read: false,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'alt_2',
-          title: 'Low Stock Alert: Dolo 650mg Tablets',
-          alert_type: 'WARNING',
-          message: 'Only 8 units remaining in certified local pharmacy inventory.',
-          is_read: false,
-          created_at: new Date().toISOString(),
-        },
-      ],
+      count: 0,
+      alerts: [],
       fallback: true,
     });
   }
