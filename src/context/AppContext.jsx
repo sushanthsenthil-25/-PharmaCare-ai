@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViTj34nY5-ERNwCnA7Zwj8rGPIMHsg29hvs-twt6_AsDLdWcg9buDJTuJC142qVvPhhA65hX8te1Q20d7ykmZ16UYBm10zL3vVzdOm-CKDgKRO-sszyTtnTOK4Iz192j94dxxY5Ki9HoZV9D4RFUYCj-z37Kd6PAUuICxpSIMc1eqzbjv6hSg8G8Q2x4bXE7V_7DDyNDA48lK3-lYsqCJyvcQQF_FGoZ1Z-z0lkB3yGmMKbA1w';
@@ -131,7 +131,6 @@ export const AppProvider = ({ children }) => {
 
   const loadCart = useCallback(async () => {
     if (!api.getAccessToken()) {
-      syncCartCalculations(cart);
       return;
     }
     try {
@@ -141,11 +140,15 @@ export const AppProvider = ({ children }) => {
         setCartSummary(res);
       }
     } catch {
-      syncCartCalculations(cart);
+      // Graceful fallback
     }
-  }, [cart, syncCartCalculations]);
+  }, []);
 
   const loadActiveOrder = useCallback(async () => {
+    if (!api.getAccessToken()) {
+      setActiveOrder(null);
+      return;
+    }
     try {
       const orders = await api.orders.list({ limit: 5 });
       if (Array.isArray(orders) && orders.length > 0) {
@@ -174,71 +177,78 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Initial Hydration & Health Check
+  // Initial Hydration & Health Check (Guaranteed Single Execution on Mount)
   // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const hydrateSession = async () => {
-      if (hasToken) {
-        setAuthLoading(true);
-      }
-      try {
-        checkBackendHealth();
-        loadDashboardSummary();
-        loadAlerts();
+  const isHydratedRef = useRef(false);
 
-        if (api.getAccessToken()) {
-          try {
-            const profile = await api.auth.me();
-            if (profile) {
-              const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
-              setUser({
-                id: profile.id || profile._id,
-                _id: profile._id || profile.id,
-                name: profile.name || profile.full_name,
-                email: profile.email,
-                role: profile.role,
-                businessName: profile.businessName || profile.business_name || '',
-                phone: profile.phone || '',
-                address: profile.address || '',
-                isLoggedIn: true,
-                avatar: photo,
-                profilePhoto: photo,
-              });
-              await Promise.allSettled([
-                loadCart(),
-                loadActiveOrder(),
-              ]);
-            } else {
-              throw new Error('No user profile');
-            }
-          } catch (err) {
-            // Token expired or invalid: reset authentication
-            api.auth.logout();
-            api.clearTokens();
-            api.clearCache();
-            setUser({
-              id: null,
-              _id: null,
-              name: '',
-              email: '',
-              role: 'USER',
-              businessName: '',
-              isLoggedIn: false,
-              avatar: DEFAULT_AVATAR,
-              profilePhoto: DEFAULT_AVATAR,
-            });
-            setCart([]);
-            setCartSummary(null);
-            setActiveOrder(null);
-          }
+  useEffect(() => {
+    if (isHydratedRef.current) return;
+    isHydratedRef.current = true;
+
+    const hydrateSession = async () => {
+      const token = api.getAccessToken();
+      if (!token) {
+        setAuthLoading(false);
+        checkBackendHealth().catch(() => {});
+        loadDashboardSummary().catch(() => {});
+        return;
+      }
+
+      setAuthLoading(true);
+      try {
+        checkBackendHealth().catch(() => {});
+        loadDashboardSummary().catch(() => {});
+        loadAlerts().catch(() => {});
+
+        const profile = await api.auth.me();
+        if (profile) {
+          const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
+          setUser({
+            id: profile.id || profile._id,
+            _id: profile._id || profile.id,
+            name: profile.name || profile.full_name,
+            email: profile.email,
+            role: profile.role,
+            businessName: profile.businessName || profile.business_name || '',
+            phone: profile.phone || '',
+            address: profile.address || '',
+            isLoggedIn: true,
+            avatar: photo,
+            profilePhoto: photo,
+          });
+          await Promise.allSettled([
+            loadCart(),
+            loadActiveOrder(),
+          ]);
+        } else {
+          throw new Error('No user profile returned');
         }
+      } catch (err) {
+        // Token expired or invalid: reset authentication safely
+        api.auth.logout();
+        api.clearTokens();
+        api.clearCache();
+        setUser({
+          id: null,
+          _id: null,
+          name: '',
+          email: '',
+          role: 'USER',
+          businessName: '',
+          isLoggedIn: false,
+          avatar: DEFAULT_AVATAR,
+          profilePhoto: DEFAULT_AVATAR,
+        });
+        setCart([]);
+        setCartSummary(null);
+        setActiveOrder(null);
       } finally {
         setAuthLoading(false);
       }
     };
 
     hydrateSession();
-  }, [checkBackendHealth, loadAlerts, loadDashboardSummary, loadCart, loadActiveOrder]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Authentication Actions
