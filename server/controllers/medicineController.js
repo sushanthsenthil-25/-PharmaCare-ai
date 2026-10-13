@@ -109,32 +109,13 @@ export const getMedicines = async (req, res) => {
       items: formatted,
     });
   } catch (error) {
-    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
-    let list = FALLBACK_MEDICINES;
-    if (req.query.category && req.query.category !== 'All') {
-      list = list.filter((m) => m.category.toLowerCase() === req.query.category.toLowerCase());
-    }
-    if (req.query.search) {
-      const s = req.query.search.toLowerCase();
-      list = list.filter(
-        (m) =>
-          m.name.toLowerCase().includes(s) ||
-          m.genericName.toLowerCase().includes(s) ||
-          m.brand.toLowerCase().includes(s) ||
-          (m.aliases && m.aliases.some((a) => a.toLowerCase().includes(s))) ||
-          m.category.toLowerCase().includes(s)
-      );
-    }
-    const sliced = list.slice(0, limitNum);
-    res.json({
-      success: true,
-      count: sliced.length,
-      total: list.length,
-      page: 1,
-      totalPages: Math.ceil(list.length / limitNum) || 1,
-      medicines: sliced,
-      items: sliced,
-      fallback: true,
+    console.error(`[Medicine catalogue] ${error.name || 'Error'}: ${error.message}`);
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'DATABASE_DISCONNECTED',
+        message: 'Medicine catalogue is temporarily unavailable. Please try again shortly.',
+      },
     });
   }
 };
@@ -160,21 +141,13 @@ export const searchMedicines = async (req, res) => {
       items: results,
     });
   } catch (error) {
-    const term = (req.query.q || req.query.query || '').toLowerCase();
-    const matches = FALLBACK_MEDICINES.filter(
-      (m) =>
-        m.name.toLowerCase().includes(term) ||
-        m.genericName.toLowerCase().includes(term) ||
-        (m.brand && m.brand.toLowerCase().includes(term)) ||
-        (m.aliases && m.aliases.some((a) => a.toLowerCase().includes(term))) ||
-        m.category.toLowerCase().includes(term)
-    );
-    res.json({
-      success: true,
-      count: matches.length,
-      medicines: matches,
-      items: matches,
-      fallback: true,
+    console.error(`[Medicine search] ${error.name || 'Error'}: ${error.message}`);
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'DATABASE_DISCONNECTED',
+        message: 'Medicine search is temporarily unavailable. Please try again shortly.',
+      },
     });
   }
 };
