@@ -42,6 +42,13 @@ class ApiClient {
     localStorage.removeItem('pharmacare_access_token');
     localStorage.removeItem('pharmacare_refresh_token');
     localStorage.removeItem('pharmacare_user');
+    this.clearCache();
+  }
+
+  clearCache() {
+    if (this._clientCache) {
+      this._clientCache.clear();
+    }
   }
 
   getUser() {
@@ -253,7 +260,7 @@ class ApiClient {
     },
 
     me: async () => {
-      const res = await this.get('/api/auth/me');
+      const res = await this.get('/api/auth/me', {}, { noCache: true });
       if (res?.user) this.setUser(res.user);
       return res?.user || res;
     },
@@ -413,7 +420,7 @@ class ApiClient {
   // 6. Cart Management
   cart = {
     get: async () => {
-      return this.get('/api/cart');
+      return this.get('/api/cart', {}, { noCache: true });
     },
 
     calculate: async (items = [], discountAmount = 0) => {
@@ -444,17 +451,17 @@ class ApiClient {
     },
 
     list: async (params = {}) => {
-      const res = await this.get('/api/orders', params);
+      const res = await this.get('/api/orders', params, { noCache: true });
       return res?.orders || res;
     },
 
     getById: async (orderId) => {
-      const res = await this.get(`/api/orders/${orderId}`);
+      const res = await this.get(`/api/orders/${orderId}`, {}, { noCache: true });
       return res?.order || res;
     },
 
     getTracking: async (orderId) => {
-      return this.get(`/api/orders/${orderId}/tracking`);
+      return this.get(`/api/orders/${orderId}/tracking`, {}, { noCache: true });
     },
 
     updateStatus: async (orderId, statusData) => {
@@ -482,11 +489,11 @@ class ApiClient {
   // 9. Owner Dashboard & Inventory Management
   owner = {
     getDashboard: async () => {
-      return this.get('/api/owner/dashboard');
+      return this.get('/api/owner/dashboard', {}, { noCache: true });
     },
 
     getMedicines: async () => {
-      const res = await this.get('/api/owner/medicines');
+      const res = await this.get('/api/owner/medicines', {}, { noCache: true });
       return res?.medicines || res;
     },
 
@@ -510,7 +517,7 @@ class ApiClient {
     },
 
     getOrders: async () => {
-      const res = await this.get('/api/owner/orders');
+      const res = await this.get('/api/owner/orders', {}, { noCache: true });
       return res?.orders || res;
     },
 

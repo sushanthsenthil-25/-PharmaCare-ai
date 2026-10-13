@@ -32,6 +32,7 @@ export const getOwnerDashboard = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const pharmacy = await getOrCreatePharmacyForUser(userId);
+    const pharmacyFilter = { pharmacyId: pharmacy._id };
 
     const now = new Date();
     const thirtyDaysFromNow = new Date();
@@ -40,7 +41,18 @@ export const getOwnerDashboard = async (req, res, next) => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    // Run parallel MongoDB aggregation & counts
+    // Identify medicine IDs stocked by this specific pharmacy
+    const ownerMedIds = await Medicine.find(pharmacyFilter).distinct('_id');
+    const orderQuery = {
+      $or: [
+        { pharmacyId: pharmacy._id },
+        { 'items.productId': { $in: ownerMedIds } },
+      ],
+    };
+
+    const hasMedicines = ownerMedIds.length > 0;
+
+    // Run parallel MongoDB aggregation & counts scoped strictly to this pharmacy
     const [
       totalMedicines,
       availableMedicines,
@@ -54,17 +66,17 @@ export const getOwnerDashboard = async (req, res, next) => {
       todaysOrders,
       recentOrders,
     ] = await Promise.all([
-      Medicine.countDocuments({ $or: [{ pharmacyId: pharmacy._id }, { pharmacyId: { $exists: false } }] }),
-      Medicine.countDocuments({ stock: { $gt: 0 }, expiryDate: { $gt: now } }),
-      Medicine.countDocuments({ stock: { $gt: 0, $lte: 10 }, expiryDate: { $gt: now } }),
-      Medicine.countDocuments({ stock: 0 }),
-      Medicine.countDocuments({ expiryDate: { $lte: now } }),
-      Medicine.countDocuments({ expiryDate: { $gt: now, $lte: thirtyDaysFromNow } }),
-      Order.countDocuments({}),
-      Order.countDocuments({ status: { $in: ['PLACED', 'CONFIRMED', 'PACKED', 'OUT_FOR_DELIVERY'] } }),
-      Order.countDocuments({ status: 'DELIVERED' }),
-      Order.countDocuments({ createdAt: { $gte: startOfToday } }),
-      Order.find({}).sort({ createdAt: -1 }).limit(5),
+      Medicine.countDocuments(pharmacyFilter),
+      Medicine.countDocuments({ ...pharmacyFilter, stock: { $gt: 0 }, expiryDate: { $gt: now } }),
+      Medicine.countDocuments({ ...pharmacyFilter, stock: { $gt: 0, $lte: 10 }, expiryDate: { $gt: now } }),
+      Medicine.countDocuments({ ...pharmacyFilter, stock: 0 }),
+      Medicine.countDocuments({ ...pharmacyFilter, expiryDate: { $lte: now } }),
+      Medicine.countDocuments({ ...pharmacyFilter, expiryDate: { $gt: now, $lte: thirtyDaysFromNow } }),
+      hasMedicines ? Order.countDocuments(orderQuery) : 0,
+      hasMedicines ? Order.countDocuments({ ...orderQuery, status: { $in: ['PLACED', 'CONFIRMED', 'PACKED', 'OUT_FOR_DELIVERY'] } }) : 0,
+      hasMedicines ? Order.countDocuments({ ...orderQuery, status: 'DELIVERED' }) : 0,
+      hasMedicines ? Order.countDocuments({ ...orderQuery, createdAt: { $gte: startOfToday } }) : 0,
+      hasMedicines ? Order.find(orderQuery).sort({ createdAt: -1 }).limit(5) : [],
     ]);
 
     res.json({
@@ -89,14 +101,18 @@ export const getOwnerDashboard = async (req, res, next) => {
   }
 };
 
-// @desc    Get owner's medicine inventory list
+// @desc    Get owner's medicine inventory list (STRICTLY scoped to authenticated owner's pharmacy)
 // @route   GET /api/owner/medicines
 // @access  Private (Owner/Pharmacist)
 export const getOwnerMedicines = async (req, res, next) => {
   try {
-    const medicines = await Medicine.find({}).sort({ createdAt: -1 });
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
+    const medicines = await Medicine.find({ pharmacyId: pharmacy._id }).sort({ createdAt: -1 });
+
     res.json({
       success: true,
+      pharmacyId: pharmacy._id,
+      pharmacyName: pharmacy.businessName,
       count: medicines.length,
       medicines,
     });
@@ -167,17 +183,43 @@ export const createMedicine = async (req, res, next) => {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Expiry date must be after manufacturing date.' } });
     }
 
-    const status = stock === 0 ? 'Out of Stock' : stock <= 10 ? 'Low Stock' : 'In Stock';
+    // Check if the medicine is already stocked in this pharmacy
+    const cleanName = name.trim();
+    const cleanStrength = (strength || 'Standard').trim();
+    const existingMed = await Medicine.findOne({
+      pharmacyId: pharmacy._id,
+      name: new RegExp(`^${cleanName}$`, 'i'),
+      strength: new RegExp(`^${cleanStrength}$`, 'i'),
+    });
+
+    if (existingMed) {
+      // Prevent duplicate inventory entry: update stock & price instead
+      existingMed.stock += Number(stock);
+      existingMed.quantity = existingMed.stock;
+      existingMed.price = Number(price);
+      existingMed.expiryDate = expDate;
+      existingMed.batchNumber = batchNumber.trim();
+      existingMed.status = existingMed.stock === 0 ? 'Out of Stock' : existingMed.stock <= 10 ? 'Low Stock' : 'In Stock';
+      await existingMed.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `Existing inventory updated: ${cleanName} now has ${existingMed.stock} units in stock.`,
+        medicine: existingMed,
+      });
+    }
+
+    const status = Number(stock) === 0 ? 'Out of Stock' : Number(stock) <= 10 ? 'Low Stock' : 'In Stock';
 
     const newMedicine = await Medicine.create({
-      name: name.trim(),
+      name: cleanName,
       genericName: genericName.trim(),
       activeIngredient: (activeIngredient || genericName).trim(),
       scientificName: (scientificName || '').trim(),
       brand: (brand || pharmacy.businessName).trim(),
       manufacturer: (manufacturer || 'PharmaCare Laboratories').trim(),
       category: category.trim(),
-      strength: (strength || 'Standard').trim(),
+      strength: cleanStrength,
       form: (form || 'Tablet').trim(),
       price: Number(price),
       originalPrice: Number(originalPrice || price),
@@ -209,14 +251,27 @@ export const createMedicine = async (req, res, next) => {
   }
 };
 
-// @desc    Update existing medicine record
+// @desc    Update existing medicine record (Strict ownership enforcement)
 // @route   PUT /api/owner/medicines/:id
 // @access  Private (Owner/Pharmacist)
 export const updateMedicine = async (req, res, next) => {
   try {
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
+
     if (!medicine) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
+    }
+
+    // Enforce ownership: cannot update another pharmacy's medicine
+    if (!medicine.pharmacyId || medicine.pharmacyId.toString() !== pharmacy._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Access denied. You do not own this inventory item.',
+        },
+      });
     }
 
     const {
@@ -277,18 +332,30 @@ export const updateMedicine = async (req, res, next) => {
   }
 };
 
-// @desc    Update stock quantity directly ([ - ] Qty [ + ])
+// @desc    Update stock quantity directly ([ - ] Qty [ + ]) (Strict ownership enforcement)
 // @route   PATCH /api/owner/medicines/:id/stock
 // @access  Private (Owner/Pharmacist)
 export const updateStock = async (req, res, next) => {
   try {
-    const { stock, delta } = req.body;
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
 
     if (!medicine) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
     }
 
+    // Enforce ownership: cannot change stock of another pharmacy's medicine
+    if (!medicine.pharmacyId || medicine.pharmacyId.toString() !== pharmacy._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Access denied. You do not own this inventory item.',
+        },
+      });
+    }
+
+    const { stock, delta } = req.body;
     let newStock = medicine.stock;
     if (stock !== undefined) {
       newStock = Number(stock);
@@ -316,14 +383,27 @@ export const updateStock = async (req, res, next) => {
   }
 };
 
-// @desc    Delete/Deactivate medicine record
+// @desc    Delete/Deactivate medicine record (Strict ownership enforcement)
 // @route   DELETE /api/owner/medicines/:id
 // @access  Private (Owner/Pharmacist)
 export const deleteMedicine = async (req, res, next) => {
   try {
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const medicine = await Medicine.findById(req.params.id);
+
     if (!medicine) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Medicine not found' } });
+    }
+
+    // Enforce ownership: cannot delete another pharmacy's medicine
+    if (!medicine.pharmacyId || medicine.pharmacyId.toString() !== pharmacy._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Access denied. You do not own this inventory item.',
+        },
+      });
     }
 
     await Medicine.deleteOne({ _id: req.params.id });
@@ -337,12 +417,21 @@ export const deleteMedicine = async (req, res, next) => {
   }
 };
 
-// @desc    Get owner's pharmacy orders
+// @desc    Get owner's pharmacy orders (Scoped strictly to authenticated owner's pharmacy)
 // @route   GET /api/owner/orders
 // @access  Private (Owner/Pharmacist)
 export const getOwnerOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find({}).sort({ createdAt: -1 });
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
+    const ownerMedIds = await Medicine.find({ pharmacyId: pharmacy._id }).distinct('_id');
+
+    const orders = await Order.find({
+      $or: [
+        { pharmacyId: pharmacy._id },
+        { 'items.productId': { $in: ownerMedIds } },
+      ],
+    }).sort({ createdAt: -1 });
+
     res.json({
       success: true,
       count: orders.length,
@@ -358,13 +447,25 @@ export const getOwnerOrders = async (req, res, next) => {
 // @access  Private (Owner/Pharmacist)
 export const updateOrderStatus = async (req, res, next) => {
   try {
-    const { status, trackingNote } = req.body;
+    const pharmacy = await getOrCreatePharmacyForUser(req.user._id);
     const order = await Order.findById(req.params.id);
 
     if (!order) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
     }
 
+    const ownerMedIds = await Medicine.find({ pharmacyId: pharmacy._id }).distinct('_id');
+    const isOwnerOrder = order.pharmacyId?.toString() === pharmacy._id.toString() ||
+      order.items.some((i) => ownerMedIds.some((mid) => mid.toString() === i.productId?.toString()));
+
+    if (!isOwnerOrder && req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Access denied. You cannot modify orders for another pharmacy.' },
+      });
+    }
+
+    const { status, trackingNote } = req.body;
     const validStatuses = ['PLACED', 'CONFIRMED', 'PACKED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: 'Invalid order status' } });

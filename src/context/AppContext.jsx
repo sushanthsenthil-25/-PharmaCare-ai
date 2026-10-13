@@ -37,7 +37,7 @@ export const AppProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
   const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
   const [dashboardSummary, setDashboardSummary] = useState(null);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(hasToken);
   const [authError, setAuthError] = useState(null);
   const [backendHealth, setBackendHealth] = useState({
     connected: true,
@@ -178,37 +178,62 @@ export const AppProvider = ({ children }) => {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const hydrateSession = async () => {
-      checkBackendHealth();
-      loadDashboardSummary();
-      loadAlerts();
+      if (hasToken) {
+        setAuthLoading(true);
+      }
+      try {
+        checkBackendHealth();
+        loadDashboardSummary();
+        loadAlerts();
 
-      if (api.getAccessToken()) {
-        try {
-          const profile = await api.auth.me();
-          if (profile) {
-            const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
-            setUser((prev) => ({
-              ...prev,
-              id: profile.id || profile._id || prev.id,
-              _id: profile._id || profile.id || prev._id,
-              name: profile.name || profile.full_name || prev.name,
-              email: profile.email || prev.email,
-              role: profile.role || prev.role,
-              businessName: profile.businessName || profile.business_name || prev.businessName,
-              phone: profile.phone || prev.phone,
-              address: profile.address || prev.address,
-              isLoggedIn: true,
-              avatar: photo,
-              profilePhoto: photo,
-            }));
-            await Promise.allSettled([
-              loadCart(),
-              loadActiveOrder(),
-            ]);
+        if (api.getAccessToken()) {
+          try {
+            const profile = await api.auth.me();
+            if (profile) {
+              const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
+              setUser({
+                id: profile.id || profile._id,
+                _id: profile._id || profile.id,
+                name: profile.name || profile.full_name,
+                email: profile.email,
+                role: profile.role,
+                businessName: profile.businessName || profile.business_name || '',
+                phone: profile.phone || '',
+                address: profile.address || '',
+                isLoggedIn: true,
+                avatar: photo,
+                profilePhoto: photo,
+              });
+              await Promise.allSettled([
+                loadCart(),
+                loadActiveOrder(),
+              ]);
+            } else {
+              throw new Error('No user profile');
+            }
+          } catch (err) {
+            // Token expired or invalid: reset authentication
+            api.auth.logout();
+            api.clearTokens();
+            api.clearCache();
+            setUser({
+              id: null,
+              _id: null,
+              name: '',
+              email: '',
+              role: 'USER',
+              businessName: '',
+              isLoggedIn: false,
+              avatar: DEFAULT_AVATAR,
+              profilePhoto: DEFAULT_AVATAR,
+            });
+            setCart([]);
+            setCartSummary(null);
+            setActiveOrder(null);
           }
-        } catch {
-          // Token expired or invalid
         }
+      } finally {
+        setAuthLoading(false);
       }
     };
 
@@ -221,6 +246,10 @@ export const AppProvider = ({ children }) => {
   const login = async (email, password, expectedRole) => {
     setAuthLoading(true);
     setAuthError(null);
+    api.clearCache();
+    setCart([]);
+    setCartSummary(null);
+    setActiveOrder(null);
     try {
       const res = await api.auth.login({ email, password, expectedRole });
       const profile = res.user;
@@ -231,7 +260,7 @@ export const AppProvider = ({ children }) => {
         name: profile.name || profile.full_name,
         email: profile.email,
         role: profile.role,
-        businessName: profile.businessName || profile.business_name,
+        businessName: profile.businessName || profile.business_name || '',
         phone: profile.phone || '',
         address: profile.address || '',
         isLoggedIn: true,
@@ -286,6 +315,8 @@ export const AppProvider = ({ children }) => {
 
   const logout = () => {
     api.auth.logout();
+    api.clearTokens();
+    api.clearCache();
     setUser({
       id: null,
       _id: null,
@@ -300,6 +331,9 @@ export const AppProvider = ({ children }) => {
     setCart([]);
     setCartSummary(null);
     setActiveOrder(null);
+    setAlerts([]);
+    setUnreadAlertsCount(0);
+    setDashboardSummary(null);
   };
 
   const uploadProfilePhoto = async (dataUrl) => {

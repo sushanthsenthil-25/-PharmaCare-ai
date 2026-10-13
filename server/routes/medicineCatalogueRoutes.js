@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { ObjectId } from 'mongodb';
+import Medicine from '../models/Medicine.js';
 
 const router = express.Router();
 
@@ -97,12 +98,63 @@ function loadCsvFallback() {
 }
 
 function getCatalogueCollection() {
-  if (mongoose.connection.readyState !== 1) {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
     return null;
   }
-  // Try pharmacare first, then pharmacare_ai
-  const db = mongoose.connection.db || mongoose.connection.useDb('pharmacare');
-  return db.collection('medicine_catalogue');
+  return mongoose.connection.db.collection('medicine_catalogue');
+}
+
+async function getLiveStockMapForDocs(docs) {
+  if (!docs || !docs.length) return new Map();
+  try {
+    if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return new Map();
+
+    const storeMeds = await Medicine.find({ isActive: { $ne: false } }).lean();
+    if (!storeMeds.length) return new Map();
+
+    const map = new Map();
+    for (const med of storeMeds) {
+      const medNameLower = (med.name || '').toLowerCase().trim();
+      const genericLower = (med.genericName || '').toLowerCase().trim();
+
+      for (const doc of docs) {
+        const docNameLower = (doc.name || '').toLowerCase().trim();
+        const docCompLower = (Array.isArray(doc.composition) ? doc.composition.join(' ') : String(doc.composition || '')).toLowerCase();
+        const key = String(doc.source_id || doc._id);
+
+        const isNameMatch =
+          docNameLower === medNameLower ||
+          docNameLower === genericLower ||
+          medNameLower.includes(docNameLower) ||
+          docNameLower.includes(medNameLower);
+
+        const isCompMatch =
+          genericLower && genericLower.length >= 4 && docCompLower.includes(genericLower);
+
+        if (isNameMatch || isCompMatch) {
+          const existing = map.get(key);
+          const currentStock = med.stock || 0;
+          if (existing) {
+            existing.stock += currentStock;
+            existing.pharmacyCount += 1;
+            if (currentStock > 0 && !existing.medicineId) {
+              existing.medicineId = med._id.toString();
+            }
+          } else {
+            map.set(key, {
+              stock: currentStock,
+              medicineId: med._id.toString(),
+              pharmacyCount: 1,
+            });
+          }
+        }
+      }
+    }
+    return map;
+  } catch (err) {
+    console.warn('[MedicineCatalogue] Live stock lookup failed:', err.message);
+    return new Map();
+  }
 }
 
 function detectDosageForm(name, packLabel) {
@@ -138,9 +190,13 @@ function serializePrice(val) {
   return isNaN(parsed) ? null : parsed;
 }
 
-function formatCatalogueItem(doc) {
+function formatCatalogueItem(doc, liveStockInfo = null) {
   const comp = Array.isArray(doc.composition) ? doc.composition : (doc.composition ? [String(doc.composition)] : []);
   const dosageForm = doc.dosage_form || detectDosageForm(doc.name, doc.pack_size_label);
+
+  const availabilityStatus = liveStockInfo
+    ? (liveStockInfo.stock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK')
+    : 'UNVERIFIED';
 
   return {
     id: String(doc.source_id || doc._id),
@@ -157,7 +213,11 @@ function formatCatalogueItem(doc) {
     source: doc.source || 'junioralive/Indian-Medicine-Dataset',
     sourceVerified: (doc.data_quality || {}).source_verified || false,
     priceMissing: (doc.data_quality || {}).price_missing || (doc.price_inr === null || doc.price_inr === undefined),
-    isLiveInventory: false,
+    isLiveInventory: Boolean(liveStockInfo && liveStockInfo.stock > 0),
+    availabilityStatus, // 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNVERIFIED'
+    stock: liveStockInfo ? liveStockInfo.stock : null,
+    liveMedicineId: liveStockInfo ? liveStockInfo.medicineId : null,
+    pharmacyCount: liveStockInfo ? liveStockInfo.pharmacyCount : 0,
     catalogueType: 'National Medicine Database (11,621 Formulations)',
     imagePlaceholder: true,
     imagePlaceholderLabel: `Authentic Formulation (${dosageForm})`,
@@ -228,7 +288,8 @@ router.get('/search', async (req, res) => {
           .limit(pageSizeNum)
           .toArray();
 
-        const items = docs.map(formatCatalogueItem);
+        const stockMap = await getLiveStockMapForDocs(docs);
+        const items = docs.map((doc) => formatCatalogueItem(doc, stockMap.get(String(doc.source_id || doc._id))));
 
         return res.json({
           query: queryText,
@@ -265,7 +326,8 @@ router.get('/search', async (req, res) => {
 
     const total = matched.length;
     const paginated = matched.slice((pageNum - 1) * pageSizeNum, pageNum * pageSizeNum);
-    const items = paginated.map(formatCatalogueItem);
+    const stockMap = await getLiveStockMapForDocs(paginated);
+    const items = paginated.map((doc) => formatCatalogueItem(doc, stockMap.get(String(doc.source_id || doc._id))));
 
     return res.json({
       query: queryText,
@@ -429,7 +491,8 @@ router.get('/', async (req, res) => {
           .limit(pageSizeNum)
           .toArray();
 
-        const items = docs.map(formatCatalogueItem);
+        const stockMap = await getLiveStockMapForDocs(docs);
+        const items = docs.map((doc) => formatCatalogueItem(doc, stockMap.get(String(doc.source_id || doc._id))));
 
         return res.json({
           page: pageNum,
@@ -467,7 +530,8 @@ router.get('/', async (req, res) => {
 
     const total = filtered.length;
     const paginated = filtered.slice((pageNum - 1) * pageSizeNum, pageNum * pageSizeNum);
-    const items = paginated.map(formatCatalogueItem);
+    const stockMap = await getLiveStockMapForDocs(paginated);
+    const items = paginated.map((doc) => formatCatalogueItem(doc, stockMap.get(String(doc.source_id || doc._id))));
 
     return res.json({
       page: pageNum,
@@ -502,20 +566,23 @@ router.get('/:id', async (req, res) => {
 
         const doc = await col.findOne(query);
         if (doc) {
-          const item = formatCatalogueItem(doc);
+          const stockMap = await getLiveStockMapForDocs([doc]);
+          const stockInfo = stockMap.get(String(doc.source_id || doc._id)) || null;
+          const item = formatCatalogueItem(doc, stockInfo);
 
           // Cross-reference with live medicines for real pharmacy stock check
           try {
-            const liveCol = mongoose.connection.useDb('pharmacare').collection('medicines');
             const escaped = doc.name.slice(0, 10).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const liveMatch = await liveCol.findOne({
+            const liveMatch = await Medicine.findOne({
               $or: [
                 { name: { $regex: escaped, $options: 'i' } },
                 { genericName: { $regex: escaped, $options: 'i' } },
               ],
-            });
+            }).lean();
             if (liveMatch) {
-              item.isLiveInventory = true;
+              item.isLiveInventory = liveMatch.stock > 0;
+              item.availabilityStatus = liveMatch.stock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
+              item.stock = liveMatch.stock;
               item.livePharmacyItem = {
                 id: String(liveMatch._id),
                 name: liveMatch.name,
@@ -541,7 +608,9 @@ router.get('/:id', async (req, res) => {
     );
 
     if (matched) {
-      return res.json(formatCatalogueItem(matched));
+      const stockMap = await getLiveStockMapForDocs([matched]);
+      const stockInfo = stockMap.get(String(matched.source_id || matched._id)) || null;
+      return res.json(formatCatalogueItem(matched, stockInfo));
     }
 
     return res.status(404).json({

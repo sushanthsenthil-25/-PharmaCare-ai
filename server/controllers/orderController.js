@@ -3,6 +3,7 @@ import Cart from '../models/Cart.js';
 import Medicine from '../models/Medicine.js';
 import HealthProduct from '../models/HealthProduct.js';
 import PersonalCareProduct from '../models/PersonalCareProduct.js';
+import Pharmacy from '../models/Pharmacy.js';
 import { isMedicineExpired } from '../utils/expiry.js';
 import { calculateCart, calculateDeliveryEstimate } from '../services/cartService.js';
 
@@ -252,6 +253,36 @@ export const getOrderById = async (req, res, next) => {
       });
     }
 
+    // Role-based order access check
+    if (order.userId) {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required to access this order.',
+        });
+      }
+      const isOwnerUser = order.userId.toString() === req.user._id.toString();
+      if (!isOwnerUser && !['ADMIN', 'PHARMACIST'].includes(req.user.role)) {
+        if (req.user.role === 'OWNER') {
+          const ownerPharmacy = await Pharmacy.findOne({ ownerId: req.user._id });
+          const hasOwnerItem = ownerPharmacy && order.items && order.items.some(
+            (it) => it.pharmacyId && it.pharmacyId.toString() === ownerPharmacy._id.toString()
+          );
+          if (!hasOwnerItem) {
+            return res.status(403).json({
+              success: false,
+              message: 'Forbidden: You do not have permission to access this order.',
+            });
+          }
+        } else {
+          return res.status(403).json({
+            success: false,
+            message: 'Forbidden: You do not have permission to access another user\'s private order.',
+          });
+        }
+      }
+    }
+
     const trackingEvents = order.trackingEvents && order.trackingEvents.length > 0
       ? order.trackingEvents
       : buildTrackingEvents(order.status, order.placedAt || order.createdAt);
@@ -315,6 +346,36 @@ export const getOrderTracking = async (req, res, next) => {
         success: false,
         message: `Order #${id} not found for tracking`,
       });
+    }
+
+    // Role-based order tracking access check
+    if (order.userId) {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required to track this order.',
+        });
+      }
+      const isOwnerUser = order.userId.toString() === req.user._id.toString();
+      if (!isOwnerUser && !['ADMIN', 'PHARMACIST'].includes(req.user.role)) {
+        if (req.user.role === 'OWNER') {
+          const ownerPharmacy = await Pharmacy.findOne({ ownerId: req.user._id });
+          const hasOwnerItem = ownerPharmacy && order.items && order.items.some(
+            (it) => it.pharmacyId && it.pharmacyId.toString() === ownerPharmacy._id.toString()
+          );
+          if (!hasOwnerItem) {
+            return res.status(403).json({
+              success: false,
+              message: 'Forbidden: You do not have permission to track this order.',
+            });
+          }
+        } else {
+          return res.status(403).json({
+            success: false,
+            message: 'Forbidden: You do not have permission to track another user\'s private order.',
+          });
+        }
+      }
     }
 
     const trackingEvents = buildTrackingEvents(order.status, order.placedAt || order.createdAt);

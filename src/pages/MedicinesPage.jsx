@@ -96,6 +96,10 @@ export const MedicinesPage = () => {
         isDiscontinued: Boolean(item.isDiscontinued),
         source: item.source || 'junioralive/Indian-Medicine-Dataset',
         isLiveInventory: Boolean(item.isLiveInventory),
+        availabilityStatus: item.availabilityStatus || (item.isLiveInventory ? 'IN_STOCK' : 'UNVERIFIED'),
+        stock: item.stock !== undefined ? item.stock : null,
+        liveMedicineId: item.liveMedicineId || null,
+        pharmacyCount: item.pharmacyCount || 0,
         img: getProductImageUrl(item),
       }));
 
@@ -263,9 +267,18 @@ export const MedicinesPage = () => {
                       <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                         DISCONTINUED
                       </span>
+                    ) : item.availabilityStatus === 'IN_STOCK' ? (
+                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        IN STOCK ({item.stock !== null ? `${item.stock} UNITS` : 'VERIFIED'})
+                      </span>
+                    ) : item.availabilityStatus === 'OUT_OF_STOCK' ? (
+                      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded">
+                        OUT OF STOCK
+                      </span>
                     ) : (
-                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        CATALOGUE LISTING
+                      <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.5 rounded">
+                        CATALOGUE (UNVERIFIED)
                       </span>
                     )}
                   </div>
@@ -306,13 +319,31 @@ export const MedicinesPage = () => {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => navigate(`/product/${item.id}`)}
-                  className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[14px]">local_pharmacy</span>
-                  Check Nearby Stock
-                </button>
+                {item.availabilityStatus === 'IN_STOCK' ? (
+                  <button
+                    onClick={() => navigate(`/product/${item.id}`)}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">local_pharmacy</span>
+                    View & Order
+                  </button>
+                ) : item.availabilityStatus === 'OUT_OF_STOCK' ? (
+                  <button
+                    onClick={() => navigate(`/product/${item.id}`)}
+                    className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 text-[11px] font-bold hover:bg-amber-200 transition-colors flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">info</span>
+                    Out of Stock
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate(`/product/${item.id}`)}
+                    className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                    Check Nearby Stock
+                  </button>
+                )}
               </div>
             </div>
           </div>

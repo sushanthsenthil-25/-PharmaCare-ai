@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import api from '../services/api';
 
-export function OwnerDashboardPage() {
+export function OwnerDashboardPage({ initialTab = 'overview' }) {
   const navigate = useNavigate();
   const { user } = useApp();
   const userRole = (user?.role || '').toUpperCase();
   const isOwnerRole = userRole === 'OWNER' || userRole === 'PHARMACIST' || userRole === 'ADMIN';
 
-  const [activeTab, setActiveTab] = useState('overview'); // overview, inventory, add, orders, pharmacy
+  const defaultTab = initialTab || (typeof window !== 'undefined' && window.location.pathname.includes('inventory') ? 'inventory' : 'overview');
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -425,9 +426,24 @@ export function OwnerDashboardPage() {
           </div>
 
           {medicines.length === 0 ? (
-            <div className="p-8 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant/20">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2">inventory_2</span>
-              <p className="text-xs text-on-surface-variant font-medium">No medicines in inventory yet. Click Add Medicine above.</p>
+            <div className="p-8 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant/20 flex flex-col items-center gap-2 shadow-sm">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-1">inventory_2</span>
+              <h3 className="font-bold text-sm text-on-surface">No Medicines in Inventory</h3>
+              <p className="text-xs text-on-surface-variant font-medium max-w-xs">
+                You have not stocked any medicines yet. Add medications to make them available for patients and express deliveries.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingMedicine(null);
+                  setMedForm(initialFormState);
+                  setIsAddModalOpen(true);
+                }}
+                className="mt-2 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-md hover:bg-primary/90 transition-all"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                Add Medicine
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

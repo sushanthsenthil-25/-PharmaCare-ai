@@ -55,7 +55,8 @@ export const ProductDetailPage = () => {
             mfgDate: data.manufacturingDate ? new Date(data.manufacturingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
             expDate: data.expiryDate ? new Date(data.expiryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
             batchNumber: data.batchNumber || null,
-            stock: data.stock !== undefined ? data.stock : (data.isLiveInventory ? 50 : null),
+            stock: data.stock !== undefined && data.stock !== null ? data.stock : (data.livePharmacyItem?.stock !== undefined ? data.livePharmacyItem.stock : null),
+            availabilityStatus: data.availabilityStatus || ((data.stock > 0 || data.livePharmacyItem?.stock > 0) ? 'IN_STOCK' : (data.isLiveInventory ? 'OUT_OF_STOCK' : 'UNVERIFIED')),
             expiryStatus: data.expiryStatus || 'VALID',
             isExpired: data.expiryStatus === 'EXPIRED',
             isDiscontinued: Boolean(data.isDiscontinued),
@@ -63,7 +64,7 @@ export const ProductDetailPage = () => {
             uses: Array.isArray(data.uses) && data.uses.length > 0 ? data.uses.join(', ') : 'Clinical therapeutic management as prescribed.',
             precautions: Array.isArray(data.precautions) && data.precautions.length > 0 ? data.precautions.join('. ') : 'Take strictly as advised by a qualified healthcare professional. Do not exceed recommended dosage.',
             isCatalogueRecord: isCatalogue,
-            isLiveInventory: Boolean(data.isLiveInventory),
+            isLiveInventory: Boolean(data.isLiveInventory || (data.stock !== null && data.stock > 0)),
             livePharmacyItem: data.livePharmacyItem || null,
             source: data.source || null,
           });
@@ -175,11 +176,20 @@ export const ProductDetailPage = () => {
         )}
 
         {/* Stock Status Badge */}
-        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface-variant font-label-sm text-[10px] font-bold">
-          {product.isLiveInventory || product.stock > 0
-            ? `${product.stock || 50} in stock`
-            : 'Formulary Entry'}
-        </span>
+        {product.availabilityStatus === 'IN_STOCK' ? (
+          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-[10px] font-bold border border-emerald-300 flex items-center gap-1 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            Available in Stock ({product.stock !== null ? `${product.stock} units` : 'Verified'})
+          </span>
+        ) : product.availabilityStatus === 'OUT_OF_STOCK' ? (
+          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-label-sm text-[10px] font-bold border border-amber-300">
+            Currently Out of Stock
+          </span>
+        ) : (
+          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-label-sm text-[10px] font-bold border border-blue-300">
+            Formulary Entry (Unverified)
+          </span>
+        )}
 
         <img
           src={product.img}

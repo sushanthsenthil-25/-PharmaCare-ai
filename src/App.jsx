@@ -102,7 +102,15 @@ export function App() {
                     path="/owner/dashboard"
                     element={
                       <ProtectedRoute allowedRoles={['OWNER', 'PHARMACIST', 'ADMIN']}>
-                        <OwnerDashboardPage />
+                        <OwnerDashboardPage initialTab="overview" />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/owner/inventory"
+                    element={
+                      <ProtectedRoute allowedRoles={['OWNER', 'PHARMACIST', 'ADMIN']}>
+                        <OwnerDashboardPage initialTab="inventory" />
                       </ProtectedRoute>
                     }
                   />
