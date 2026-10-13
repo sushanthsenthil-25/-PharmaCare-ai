@@ -2,10 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Logo } from './Logo';
+import { LocationPickerModal } from './LocationPickerModal';
 
 export const Header = () => {
   const navigate = useNavigate();
-  const { cart, user, location: userLoc, alerts, unreadAlertsCount, markAlertRead, setAiState, backendHealth, checkBackendHealth, openCart } = useApp();
+  const {
+    cart,
+    user,
+    location: userLoc,
+    setIsLocationModalOpen,
+    alerts,
+    unreadAlertsCount,
+    markAlertRead,
+    setAiState,
+    backendHealth,
+    checkBackendHealth,
+    openCart,
+  } = useApp();
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -102,8 +115,13 @@ export const Header = () => {
 
           {/* Location & Search bar */}
           <div className="flex items-center justify-between gap-space-sm">
-            <button className="flex items-center gap-1.5 text-left py-1 px-2.5 rounded-full bg-surface-container-low hover:bg-surface-container transition-colors max-w-[200px]">
-              <span className="material-symbols-outlined text-primary text-[16px]">location_on</span>
+            <button
+              type="button"
+              onClick={() => setIsLocationModalOpen(true)}
+              title="Click to change delivery location"
+              className="flex items-center gap-1.5 text-left py-1 px-2.5 rounded-full bg-surface-container-low hover:bg-surface-container border border-outline-variant/15 hover:border-primary/40 transition-all max-w-[200px] cursor-pointer group"
+            >
+              <span className="material-symbols-outlined text-primary text-[16px] group-hover:scale-110 transition-transform">location_on</span>
               <span className="font-label-sm text-label-sm text-on-surface font-medium truncate">{userLoc}</span>
               <span className="material-symbols-outlined text-on-surface-variant text-[16px]">expand_more</span>
             </button>
@@ -183,6 +201,9 @@ export const Header = () => {
           </div>
         </div>
       )}
+
+      {/* Interactive Location Selector Modal */}
+      <LocationPickerModal />
     </>
   );
 };

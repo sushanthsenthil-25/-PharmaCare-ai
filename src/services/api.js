@@ -532,8 +532,16 @@ class ApiClient {
 
   // 10. Nearby Pharmacies & Availability
   pharmacies = {
-    getNearby: async ({ lat, lng, radius }) => {
+    getNearby: async ({ lat, lng, radius = 5 }) => {
       return this.get('/api/pharmacies/nearby', { lat, lng, radius });
+    },
+
+    geocodeSearch: async (query) => {
+      return this.get('/api/pharmacies/geocode/search', { q: query });
+    },
+
+    reverseGeocode: async (lat, lng) => {
+      return this.get('/api/pharmacies/geocode/reverse', { lat, lng });
     },
 
     getById: async (id) => {

@@ -24,14 +24,18 @@ import pharmacyRoutes from './routes/pharmacyRoutes.js';
 import ownerRoutes from './routes/ownerRoutes.js';
 import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
 import { seedDemoUsers } from './scripts/seed_demo_users.js';
+import { seedDemoOwnerInventory } from './scripts/seed_demo_owner_inventory.js';
 
 // Models for dashboard / alerts compatibility
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
 
-// Non-blocking initial database connection attempt and demo user seed
+// Non-blocking initial database connection attempt and demo user & inventory seed
 connectDB()
-  .then(() => seedDemoUsers())
+  .then(async () => {
+    await seedDemoUsers();
+    await seedDemoOwnerInventory();
+  })
   .catch(() => {});
 
 // Middleware to await database connection and ensure availability for DB-dependent routes

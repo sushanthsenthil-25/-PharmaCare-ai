@@ -33,6 +33,12 @@ export function OwnerDashboardPage({ initialTab = 'overview' }) {
   const [medicines, setMedicines] = useState([]);
   const [orders, setOrders] = useState([]);
 
+  // Inventory Search, Filter & Sort State
+  const [invSearch, setInvSearch] = useState('');
+  const [invStockFilter, setInvStockFilter] = useState('ALL'); // ALL, IN_STOCK, LOW_STOCK, OUT_OF_STOCK
+  const [invCategoryFilter, setInvCategoryFilter] = useState('ALL');
+  const [invSortBy, setInvSortBy] = useState('DEFAULT'); // DEFAULT, NAME_ASC, STOCK_LOW, STOCK_HIGH, PRICE_LOW, PRICE_HIGH
+
   // Add / Edit Medicine Form State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMedicine, setEditingMedicine] = useState(null);
@@ -244,6 +250,38 @@ export function OwnerDashboardPage({ initialTab = 'overview' }) {
     );
   }
 
+  // Filtered and Sorted Inventory Records
+  const filteredMedicines = medicines
+    .filter((med) => {
+      if (invSearch.trim()) {
+        const q = invSearch.toLowerCase().trim();
+        const matchesName = med.name?.toLowerCase().includes(q);
+        const matchesGeneric = med.genericName?.toLowerCase().includes(q);
+        const matchesCategory = med.category?.toLowerCase().includes(q);
+        const matchesBatch = med.batchNumber?.toLowerCase().includes(q);
+        if (!matchesName && !matchesGeneric && !matchesCategory && !matchesBatch) return false;
+      }
+      if (invStockFilter === 'IN_STOCK' && med.stock <= 10) return false;
+      if (invStockFilter === 'LOW_STOCK' && (med.stock === 0 || med.stock > 10)) return false;
+      if (invStockFilter === 'OUT_OF_STOCK' && med.stock !== 0) return false;
+      if (invCategoryFilter !== 'ALL' && med.category !== invCategoryFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (invSortBy === 'NAME_ASC') return (a.name || '').localeCompare(b.name || '');
+      if (invSortBy === 'STOCK_LOW') return a.stock - b.stock;
+      if (invSortBy === 'STOCK_HIGH') return b.stock - a.stock;
+      if (invSortBy === 'PRICE_LOW') return a.price - b.price;
+      if (invSortBy === 'PRICE_HIGH') return b.price - a.price;
+      return 0;
+    });
+
+  const availableCategories = ['ALL', ...Array.from(new Set(medicines.map((m) => m.category).filter(Boolean)))];
+
+  const inStockCount = medicines.filter((m) => m.stock > 10).length;
+  const lowStockCount = medicines.filter((m) => m.stock > 0 && m.stock <= 10).length;
+  const outOfStockCount = medicines.filter((m) => m.stock === 0).length;
+
   return (
     <div className="flex flex-col gap-4 px-4 py-2 pb-12 w-full">
       {/* Top Banner & Header */}
@@ -447,9 +485,128 @@ export function OwnerDashboardPage({ initialTab = 'overview' }) {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {medicines.map((med) => (
-                <div
-                  key={med._id || med.id}
+              {/* Search, Filter & Sort Controls */}
+              <div className="flex flex-col gap-2.5 p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 shadow-xs">
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
+                  <input
+                    type="text"
+                    value={invSearch}
+                    onChange={(e) => setInvSearch(e.target.value)}
+                    placeholder="Search inventory by name, generic, batch or category..."
+                    className="w-full pl-9 pr-9 py-2 rounded-xl bg-surface-container-low border border-outline-variant/25 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary"
+                  />
+                  {invSearch && (
+                    <button onClick={() => setInvSearch('')} className="absolute right-3 text-on-surface-variant hover:text-on-surface">
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Status Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setInvStockFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all ${
+                      invStockFilter === 'ALL'
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    All ({medicines.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvStockFilter('IN_STOCK')}
+                    className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all ${
+                      invStockFilter === 'IN_STOCK'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    }`}
+                  >
+                    In Stock ({inStockCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvStockFilter('LOW_STOCK')}
+                    className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all ${
+                      invStockFilter === 'LOW_STOCK'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    Low Stock ({lowStockCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvStockFilter('OUT_OF_STOCK')}
+                    className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all ${
+                      invStockFilter === 'OUT_OF_STOCK'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    Out of Stock ({outOfStockCount})
+                  </button>
+                </div>
+
+                {/* Category Filter & Sorting Dropdowns */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-outline-variant/10">
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">Category</label>
+                    <select
+                      value={invCategoryFilter}
+                      onChange={(e) => setInvCategoryFilter(e.target.value)}
+                      className="p-1.5 rounded-lg bg-surface-container-low border border-outline-variant/20 text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                    >
+                      {availableCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat === 'ALL' ? 'All Categories' : cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase">Sort By</label>
+                    <select
+                      value={invSortBy}
+                      onChange={(e) => setInvSortBy(e.target.value)}
+                      className="p-1.5 rounded-lg bg-surface-container-low border border-outline-variant/20 text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                    >
+                      <option value="DEFAULT">Latest Added</option>
+                      <option value="NAME_ASC">Name (A–Z)</option>
+                      <option value="STOCK_LOW">Stock (Low to High)</option>
+                      <option value="STOCK_HIGH">Stock (High to Low)</option>
+                      <option value="PRICE_LOW">Price (Low to High)</option>
+                      <option value="PRICE_HIGH">Price (High to Low)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {filteredMedicines.length === 0 ? (
+                <div className="p-6 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant/20 flex flex-col items-center gap-2 shadow-xs">
+                  <span className="material-symbols-outlined text-3xl text-on-surface-variant mb-1">filter_alt_off</span>
+                  <p className="font-bold text-xs text-on-surface">No medicines match your current filter</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvSearch('');
+                      setInvStockFilter('ALL');
+                      setInvCategoryFilter('ALL');
+                      setInvSortBy('DEFAULT');
+                    }}
+                    className="mt-1 px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-all"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                filteredMedicines.map((med) => (
+                  <div
+                    key={med._id || med.id}
                   className="flex flex-col gap-2 p-3.5 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -530,7 +687,7 @@ export function OwnerDashboardPage({ initialTab = 'overview' }) {
                     </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           )}
         </div>

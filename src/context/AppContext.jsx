@@ -6,12 +6,29 @@ const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida/AEtjO1UXIyqn0rViT
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  const [location, setLocation] = useState('Indiranagar, 560038');
-  const [aiState, setAiState] = useState('ready'); // ready, listening, thinking, speaking
+  // Stored location or default state
+  const savedLocationData = (() => {
+    try {
+      const raw = localStorage.getItem('pharmacare_selected_location');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
 
   // Stored user or default state
   const storedUser = api.getUser();
   const hasToken = !!api.getAccessToken();
+
+  const [location, setLocation] = useState(
+    savedLocationData?.address || storedUser?.address || 'Indiranagar, Bangalore 560038'
+  );
+  const [userCoordinates, setUserCoordinates] = useState(
+    savedLocationData?.coordinates || { lat: 12.9784, lng: 77.6408 }
+  );
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  const [aiState, setAiState] = useState('ready'); // ready, listening, thinking, speaking
 
   const [user, setUser] = useState({
     id: storedUser?.id || storedUser?._id || null,
@@ -565,11 +582,45 @@ export const AppProvider = ({ children }) => {
     return created;
   };
 
+  // ---------------------------------------------------------------------------
+  // Delivery Location Selector & Geolocation Synchronization
+  // ---------------------------------------------------------------------------
+  const updateDeliveryLocation = useCallback(async (newAddress, coords = null) => {
+    if (!newAddress || typeof newAddress !== 'string' || !newAddress.trim()) return;
+    const cleanAddress = newAddress.trim();
+    const effectiveCoords =
+      coords && typeof coords.lat === 'number' && typeof coords.lng === 'number'
+        ? { lat: coords.lat, lng: coords.lng }
+        : userCoordinates || { lat: 12.9784, lng: 77.6408 };
+
+    setLocation(cleanAddress);
+    setUserCoordinates(effectiveCoords);
+
+    try {
+      localStorage.setItem(
+        'pharmacare_selected_location',
+        JSON.stringify({ address: cleanAddress, coordinates: effectiveCoords })
+      );
+    } catch (_) {}
+
+    // Persist for authenticated user in database profile
+    if (api.getAccessToken()) {
+      try {
+        await api.auth.updateProfile({ address: cleanAddress });
+      } catch (_) {}
+    }
+  }, [userCoordinates]);
+
   return (
     <AppContext.Provider
       value={{
         location,
         setLocation,
+        userCoordinates,
+        setUserCoordinates,
+        updateDeliveryLocation,
+        isLocationModalOpen,
+        setIsLocationModalOpen,
         aiState,
         setAiState,
         cart,

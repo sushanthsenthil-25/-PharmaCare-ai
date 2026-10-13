@@ -57,15 +57,16 @@ async function runTests() {
   const unauthenticatedOwnerAccess = await fetch(`${BASE_URL}/api/owner/medicines`);
   assert(unauthenticatedOwnerAccess.status === 401, 'Unauthenticated user blocked from /api/owner/medicines (HTTP 401 Unauthorized)');
 
-  // 5. Test Owner 1 Inventory Isolation (Should be 0 medicines for pharmacare@gmail.com)
+  // 5. Test Owner 1 Inventory Isolation (Should have 27 seeded medicines for pharmacare@gmail.com)
   console.log('\n--- Step 3: Owner Inventory Isolation ---');
   const owner1Meds = await fetch(`${BASE_URL}/api/owner/medicines`, {
     headers: { Authorization: `Bearer ${owner1Token}` },
   }).then(r => r.json());
 
-  assert(owner1Meds.success && owner1Meds.medicines.length === 0, `Owner 1 inventory shows strictly their own medicines (Found: ${owner1Meds.medicines?.length}, expected: 0)`);
+  const owner1InitialCount = owner1Meds.medicines?.length || 0;
+  assert(owner1Meds.success && owner1InitialCount >= 25, `Owner 1 inventory shows strictly their own populated medicines (Found: ${owner1InitialCount}, expected >= 25)`);
 
-  // 6. Test Owner 2 Inventory Isolation (Should have 25 medicines)
+  // 6. Test Owner 2 Inventory Isolation (Should have 20 medicines)
   const owner2Meds = await fetch(`${BASE_URL}/api/owner/medicines`, {
     headers: { Authorization: `Bearer ${owner2Token}` },
   }).then(r => r.json());
@@ -127,13 +128,13 @@ async function runTests() {
   assert(newMedRes.success && newMedRes.medicine && newMedRes.medicine.stock === 75, 'Owner 1 successfully creates new medicine in their inventory');
   const createdMedId = newMedRes.medicine?._id;
 
-  // Verify Owner 1 now has 1 medicine
+  // Verify Owner 1 now has initialCount + 1 medicines
   const owner1UpdatedMeds = await fetch(`${BASE_URL}/api/owner/medicines`, {
     headers: { Authorization: `Bearer ${owner1Token}` },
   }).then(r => r.json());
-  assert(owner1UpdatedMeds.medicines.length === 1, `Owner 1 now has exactly 1 medicine in inventory (Found: ${owner1UpdatedMeds.medicines.length})`);
+  assert(owner1UpdatedMeds.medicines.length === owner1InitialCount + 1, `Owner 1 now has exactly ${owner1InitialCount + 1} medicines in inventory (Found: ${owner1UpdatedMeds.medicines.length})`);
 
-  // Verify Owner 2 still has 25 medicines (unaffected)
+  // Verify Owner 2 still has 20 medicines (unaffected)
   const owner2UntouchedMeds = await fetch(`${BASE_URL}/api/owner/medicines`, {
     headers: { Authorization: `Bearer ${owner2Token}` },
   }).then(r => r.json());
@@ -162,7 +163,7 @@ async function runTests() {
   const owner1FinalMeds = await fetch(`${BASE_URL}/api/owner/medicines`, {
     headers: { Authorization: `Bearer ${owner1Token}` },
   }).then(r => r.json());
-  assert(owner1FinalMeds.medicines.length === 0, 'Owner 1 inventory cleanly returns to 0 (clean empty state)');
+  assert(owner1FinalMeds.medicines.length === owner1InitialCount, `Owner 1 inventory cleanly returns to initial count (${owner1InitialCount})`);
 
   // 10. Customer Catalogue & 3-way Availability Check
   console.log('\n--- Step 7: Customer Full Catalogue & 3-Way Availability ---');
@@ -219,6 +220,32 @@ async function runTests() {
     headers: { Authorization: `Bearer ${owner1Token}` },
   });
   assert(owner1CrossOrder.status === 403, 'Uninvolved Owner 1 blocked from accessing order (HTTP 403)');
+
+  // 12. Test Nearby Pharmacies 5km Default & Configurable Radius
+  console.log('\n--- Step 9: Functional Location & Nearby Pharmacy Search ---');
+  const nearby5km = await fetch(`${BASE_URL}/api/pharmacies/nearby?lat=12.9784&lng=77.6408`).then(r => r.json());
+  assert(nearby5km.success && nearby5km.radiusKm === 5, 'Nearby pharmacies defaults to 5 km radius');
+  assert(nearby5km.pharmacies.every(p => p.distanceKm <= 5), 'All returned pharmacies strictly fall within 5 km radius');
+  assert(nearby5km.pharmacies.length > 0, `Found verified pharmacies within 5 km (Found: ${nearby5km.pharmacies.length})`);
+
+  // Check 1 km radius
+  const nearby1km = await fetch(`${BASE_URL}/api/pharmacies/nearby?lat=12.9784&lng=77.6408&radius=1`).then(r => r.json());
+  assert(nearby1km.success && nearby1km.radiusKm === 1, 'Nearby pharmacies respects 1 km radius');
+  assert(nearby1km.pharmacies.every(p => p.distanceKm <= 1), 'All returned pharmacies strictly fall within 1 km radius');
+  assert(nearby1km.pharmacies.length <= nearby5km.pharmacies.length, '1 km radius returns subset of 5 km radius');
+
+  // Verify nearest-first sorting
+  const distances = nearby5km.pharmacies.map(p => p.distanceKm);
+  const isSorted = distances.every((d, i) => i === 0 || d >= distances[i - 1]);
+  assert(isSorted, 'Nearby pharmacies are strictly sorted by nearest distance first');
+
+  // Test geocoding search
+  const geocodeSearch = await fetch(`${BASE_URL}/api/pharmacies/geocode/search?q=Indiranagar`).then(r => r.json());
+  assert(geocodeSearch.success && geocodeSearch.results.length > 0, 'Geocode search resolves locality with valid coordinates');
+
+  // Test reverse geocoding
+  const reverseGeocode = await fetch(`${BASE_URL}/api/pharmacies/geocode/reverse?lat=12.9784&lng=77.6408`).then(r => r.json());
+  assert(reverseGeocode.success && reverseGeocode.address, 'Reverse geocoding resolves coordinates to address');
 
   console.log(`\n=== RESULTS: ${passed}/${total} TESTS PASSED ===\n`);
   if (passed === total) {
