@@ -1,16 +1,6 @@
 import mongoose from 'mongoose';
-import dns from 'dns';
-
-// Configure DNS for reliable Atlas SRV record resolution
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (_) {
-  // Keep system defaults if DNS override fails
-}
-
 const LOCAL_DEV_URI = 'mongodb://127.0.0.1:27017/pharmacare';
 
-let isConnected = false;
 let cachedPromise = null;
 
 /**
@@ -29,15 +19,14 @@ export const isDbConnected = () => mongoose.connection.readyState === 1;
  */
 export const connectDB = async () => {
   if (mongoose.connection.readyState === 1) {
-    isConnected = true;
     return mongoose.connection;
   }
 
   if (cachedPromise) {
     try {
       await cachedPromise;
-      isConnected = mongoose.connection.readyState === 1;
-      return mongoose.connection;
+      if (mongoose.connection.readyState === 1) return mongoose.connection;
+      cachedPromise = null;
     } catch (_) {
       cachedPromise = null;
     }
@@ -52,6 +41,10 @@ export const connectDB = async () => {
       return null;
     }
     targetUri = process.env.MONGODB_URI.trim();
+    if (!targetUri) {
+      console.error('[MongoDB Error]: MONGODB_URI is present but empty in production.');
+      return null;
+    }
   } else {
     // In local development, prefer explicit local development URI unless MONGODB_URI is provided
     targetUri = (process.env.MONGODB_URI && !process.env.USE_LOCAL_DB) 
@@ -71,13 +64,11 @@ export const connectDB = async () => {
       connectTimeoutMS: 5000,
     });
     const conn = await cachedPromise;
-    isConnected = true;
-    console.log(`[MongoDB Connected]: ${conn.connection.host} (${sanitizeUri(targetUri)})`);
+    console.log(`[MongoDB Connected]: ${conn.connection.host}`);
     return conn;
   } catch (err) {
     cachedPromise = null;
-    isConnected = false;
-    console.error(`[MongoDB Error]: Connection failed to ${sanitizeUri(targetUri)}: ${err.message}`);
+    console.error(`[MongoDB Error]: Connection failed (${err.name || 'Error'}${err.code ? `, code ${err.code}` : ''}): ${err.message}`);
 
     // In local development, if remote Atlas failed, attempt local MongoDB fallback
     if (!isProduction && targetUri !== LOCAL_DEV_URI) {
@@ -89,13 +80,11 @@ export const connectDB = async () => {
           connectTimeoutMS: 3000,
         });
         const localConn = await cachedPromise;
-        isConnected = true;
         console.log(`[MongoDB Connected]: Local development database connected at ${localConn.connection.host}`);
         return localConn;
       } catch (localErr) {
         cachedPromise = null;
-        isConnected = false;
-        console.error(`[MongoDB Error]: Local fallback also failed: ${localErr.message}`);
+        console.error(`[MongoDB Error]: Local fallback also failed (${localErr.name || 'Error'}): ${localErr.message}`);
       }
     }
 
@@ -110,7 +99,6 @@ export const closeDB = async () => {
   try {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
-      isConnected = false;
       cachedPromise = null;
       console.log('[MongoDB]: Connection closed gracefully.');
     }
