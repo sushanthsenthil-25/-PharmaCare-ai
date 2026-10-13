@@ -1,6 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { CartModal } from './components/CartModal';
@@ -14,6 +14,54 @@ import { ProductDetailPage } from './pages/ProductDetailPage';
 import { TrackOrderPage } from './pages/TrackOrderPage';
 import { OwnerDashboardPage } from './pages/OwnerDashboardPage';
 
+// Root Route: Unauthenticated visitors see the professional login/welcome portal first
+function RootRoute() {
+  const { user, authLoading } = useApp();
+
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-on-surface-variant gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+        <span>Verifying clinical session...</span>
+      </div>
+    );
+  }
+
+  if (!user?.isLoggedIn) {
+    return <LoginPage />;
+  }
+
+  if (user?.role === 'OWNER' || user?.role === 'PHARMACIST') {
+    return <OwnerDashboardPage />;
+  }
+
+  return <HomePage />;
+}
+
+// Protected Route for Role-Based Authorization
+function ProtectedRoute({ children, allowedRoles }) {
+  const { user, authLoading } = useApp();
+
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-on-surface-variant gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+        <span>Verifying authorization...</span>
+      </div>
+    );
+  }
+
+  if (!user?.isLoggedIn) {
+    return <Navigate to="/login?role=owner" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user?.role?.toUpperCase())) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
 export function App() {
   return (
     <AppProvider>
@@ -26,14 +74,22 @@ export function App() {
             {/* Scrollable Main Area */}
             <main className="flex-1 w-full pt-[96px] pb-16">
               <Routes>
-                <Route path="/" element={<HomePage />} />
+                <Route path="/" element={<RootRoute />} />
+                <Route path="/dashboard" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/medicines" element={<MedicinesPage />} />
                 <Route path="/health" element={<HealthProductsPage />} />
                 <Route path="/personal-care" element={<PersonalCarePage />} />
                 <Route path="/product/:id" element={<ProductDetailPage />} />
                 <Route path="/track-order" element={<TrackOrderPage />} />
-                <Route path="/owner/dashboard" element={<OwnerDashboardPage />} />
+                <Route
+                  path="/owner/dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['OWNER', 'PHARMACIST', 'ADMIN']}>
+                      <OwnerDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </main>
 

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Medicine from '../models/Medicine.js';
 import { getExpiryStatus } from '../utils/expiry.js';
 import { searchMedicinesRanked, formatMedicine } from '../services/medicineSearchService.js';
@@ -174,6 +175,17 @@ export const getMedicineById = async (req, res) => {
   }
 };
 
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 // @desc    Get nearby pharmacy availability for a medicine
 // @route   GET /api/medicines/:id/availability
 // @access  Public
@@ -183,7 +195,38 @@ export const getMedicineAvailability = async (req, res) => {
     const lat = parseFloat(req.query.lat) || 12.9716;
     const lng = parseFloat(req.query.lng) || 77.5946;
 
-    const targetMed = await Medicine.findById(id);
+    let targetMed = null;
+    let searchName = '';
+
+    // Check if valid ObjectId for store Medicine
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      targetMed = await Medicine.findById(id).populate('pharmacyId');
+      if (targetMed) {
+        searchName = targetMed.genericName || targetMed.name;
+      }
+    }
+
+    // If not found in store Medicine, check medicine_catalogue
+    if (!targetMed) {
+      const cleanSourceId = String(id).replace(/^catalogue_/, '');
+      if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+        const col = mongoose.connection.db.collection('medicine_catalogue');
+        const catDoc = await col.findOne({ source_id: cleanSourceId });
+        if (catDoc) {
+          targetMed = {
+            id: `catalogue_${catDoc.source_id}`,
+            _id: `catalogue_${catDoc.source_id}`,
+            name: catDoc.name,
+            genericName: Array.isArray(catDoc.composition) && catDoc.composition[0] ? catDoc.composition[0] : catDoc.name,
+            dosageForm: catDoc.dosage_form || 'Tablet',
+            manufacturer: catDoc.manufacturer_name,
+            price: catDoc.price_inr || 0,
+            isCatalogue: true,
+          };
+          searchName = (Array.isArray(catDoc.composition) && catDoc.composition[0]) || catDoc.name;
+        }
+      }
+    }
 
     if (!targetMed) {
       return res.status(404).json({
@@ -193,36 +236,72 @@ export const getMedicineAvailability = async (req, res) => {
     }
 
     // Find all matching in-stock medicines with same name/genericName
-    const searchName = targetMed.genericName || targetMed.name;
     const now = new Date();
+    const nameKeywords = searchName.replace(/[^\w\s]/g, '').trim().split(/\s+/).filter((w) => w.length > 2);
+    const regexList = nameKeywords.map((k) => new RegExp(k, 'i'));
 
-    const matchingMeds = await Medicine.find({
-      $or: [
-        { name: new RegExp(searchName, 'i') },
-        { genericName: new RegExp(searchName, 'i') },
-      ],
-      stock: { $gt: 0 },
-      expiryDate: { $gt: now },
-    }).populate('pharmacyId');
+    let matchingMeds = [];
+    if (regexList.length > 0) {
+      matchingMeds = await Medicine.find({
+        $or: [
+          { name: { $in: regexList } },
+          { genericName: { $in: regexList } },
+        ],
+        stock: { $gt: 0 },
+        expiryDate: { $gt: now },
+      }).populate('pharmacyId');
+    }
+
+    // If targetMed itself is a live store medicine with pharmacyId, include it
+    if (targetMed.pharmacyId && !matchingMeds.some((m) => m._id.toString() === targetMed._id.toString())) {
+      matchingMeds.unshift(targetMed);
+    }
+
+    const availablePharmacies = matchingMeds.map((m) => {
+      const pharma = m.pharmacyId || {};
+      const pharmaLat = pharma.latitude || 12.9784;
+      const pharmaLng = pharma.longitude || 77.6408;
+      const dist = calculateHaversineDistance(lat, lng, pharmaLat, pharmaLng);
+
+      return {
+        medicineId: m._id,
+        pharmacyId: pharma._id || pharma.id || 'pharma_indiranagar_01',
+        pharmacyName: pharma.businessName || 'Verified Local Pharmacy',
+        address: pharma.address || 'Certified Pharmacy Address',
+        phone: pharma.phone || '+91 98765 43210',
+        latitude: pharmaLat,
+        longitude: pharmaLng,
+        price: m.price,
+        originalPrice: m.originalPrice || Math.round(m.price * 1.25),
+        stock: m.stock,
+        status: m.stock > 0 ? 'In Stock' : 'Out of Stock',
+        distanceKm: dist,
+        distanceText: `${dist} km`,
+        lastUpdated: m.updatedAt || new Date().toISOString(),
+        pharmacy: {
+          id: pharma._id || pharma.id,
+          businessName: pharma.businessName || 'Verified Local Pharmacy',
+          address: pharma.address || 'Certified Pharmacy Address',
+          phone: pharma.phone || '+91 98765 43210',
+          latitude: pharmaLat,
+          longitude: pharmaLng,
+          openingTime: pharma.openingTime || '08:00 AM',
+          closingTime: pharma.closingTime || '11:00 PM',
+          isOpen: pharma.isOpen !== undefined ? pharma.isOpen : true,
+          rating: pharma.rating || 4.8,
+        },
+      };
+    });
+
+    availablePharmacies.sort((a, b) => a.distanceKm - b.distanceKm);
 
     res.json({
       success: true,
       medicine: targetMed,
-      availabilityCount: matchingMeds.length,
-      availablePharmacies: matchingMeds.map((m) => ({
-        medicineId: m._id,
-        price: m.price,
-        stock: m.stock,
-        status: m.stock > 0 ? 'In Stock' : 'Out of Stock',
-        pharmacy: m.pharmacyId || {
-          businessName: 'PharmaCare Central Pharmacy',
-          address: 'Indiranagar, Bangalore 560038',
-          phone: '+91 98765 43210',
-          latitude: 12.9784,
-          longitude: 77.6408,
-          isOpen: true,
-        },
-      })),
+      availableCount: availablePharmacies.length,
+      availabilityCount: availablePharmacies.length,
+      pharmacies: availablePharmacies,
+      availablePharmacies,
     });
   } catch (error) {
     return res.status(503).json({

@@ -7,6 +7,7 @@
     "dev": "vite",
     "server": "node server/server.js",
     "seed": "node server/seed.js",
+    "import:catalogue": "node server/scripts/importCatalogue.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

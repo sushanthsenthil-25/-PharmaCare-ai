@@ -145,3 +145,85 @@ export const getPharmacyMedicines = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get pharmacy reviews (Real DB reviews)
+// @route   GET /api/pharmacies/:id/reviews
+// @access  Public
+export const getPharmacyReviews = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const ReviewModel = (await import('../models/Review.js')).default;
+    const reviews = await ReviewModel.find({ pharmacyId: id }).sort({ createdAt: -1 }).lean();
+
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0
+      ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews) * 10) / 10
+      : null;
+
+    res.json({
+      success: true,
+      totalReviews,
+      averageRating,
+      reviews: reviews.map((r) => ({
+        id: r._id.toString(),
+        userName: r.userName,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add review for a pharmacy (Authenticated)
+// @route   POST /api/pharmacies/:id/reviews
+// @access  Private
+export const addPharmacyReview = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+
+    const numRating = Number(rating);
+    if (!numRating || numRating < 1 || numRating > 5) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Rating must be an integer between 1 and 5' },
+      });
+    }
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Review comment is required' },
+      });
+    }
+
+    const ReviewModel = (await import('../models/Review.js')).default;
+
+    // Mask name for privacy (e.g. "Rahul S.")
+    const rawName = req.user.name || 'Verified Patient';
+    const parts = rawName.split(' ');
+    const maskedName = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
+
+    const review = await ReviewModel.findOneAndUpdate(
+      { pharmacyId: id, userId: req.user._id },
+      {
+        userName: maskedName,
+        rating: numRating,
+        comment: comment.trim(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Review recorded successfully',
+      review,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

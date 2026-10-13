@@ -272,6 +272,14 @@ class ApiClient {
       return res?.user || res;
     },
 
+    forgotPassword: async (email) => {
+      return await this.post('/api/auth/forgot-password', { email });
+    },
+
+    resetPassword: async ({ email, resetToken, newPassword }) => {
+      return await this.post('/api/auth/reset-password', { email, resetToken, newPassword });
+    },
+
     logout: async () => {
       this.clearTokens();
     },
@@ -527,6 +535,14 @@ class ApiClient {
 
     getAvailability: async (medicineId, { lat, lng } = {}) => {
       return this.get(`/api/medicines/${medicineId}/availability`, { lat, lng });
+    },
+
+    getReviews: async (id) => {
+      return this.get(`/api/pharmacies/${id}/reviews`);
+    },
+
+    addReview: async (id, { rating, comment }) => {
+      return this.post(`/api/pharmacies/${id}/reviews`, { rating, comment });
     },
   };
 

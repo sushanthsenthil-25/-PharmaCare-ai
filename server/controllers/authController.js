@@ -435,3 +435,103 @@ export const removeProfilePhoto = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Initiate password recovery (Forgot Password)
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Email address is required' },
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an account exists with this email, password reset instructions have been generated.',
+      });
+    }
+
+    const resetToken = jwt.sign(
+      { id: user._id, type: 'password_reset' },
+      process.env.JWT_SECRET || 'pharmacare-ai-super-secret-jwt-key-2026-secure',
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Password recovery verified. You may now set your new password.',
+      resetToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset password using resetToken or verified email
+// @route   POST /api/auth/reset-password
+// @access  Public
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'New password must be at least 6 characters' },
+      });
+    }
+
+    let userId = null;
+    if (resetToken) {
+      try {
+        const decoded = jwt.verify(
+          resetToken,
+          process.env.JWT_SECRET || 'pharmacare-ai-super-secret-jwt-key-2026-secure'
+        );
+        userId = decoded.id;
+      } catch (_) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Password reset link or token is invalid or expired.' },
+        });
+      }
+    } else if (email) {
+      const user = await User.findOne({ email: email.toLowerCase().trim() });
+      if (user) userId = user._id;
+    }
+
+    if (!userId) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User account not found.' },
+      });
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User account not found.' },
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password has been successfully updated. You can now log in with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

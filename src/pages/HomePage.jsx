@@ -63,7 +63,7 @@ export const HomePage = () => {
               Welcome back
             </span>
             <h1 className="font-headline-md text-primary font-bold tracking-tight text-lg">
-              Good morning, {user.name}
+              Good morning, {user?.name || 'Customer'}
             </h1>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary-container/60 border border-secondary/20">
@@ -105,26 +105,28 @@ export const HomePage = () => {
       <NearbyPharmacyMap />
 
       {/* Live Order Tracker Widget */}
-      <section 
-        onClick={() => navigate('/track-order')}
-        className="cursor-pointer p-3 rounded-xl bg-gradient-to-r from-primary-container/20 to-secondary-container/30 border border-primary/20 shadow-sm flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-primary text-on-primary flex items-center justify-center">
-            <span className="material-symbols-outlined text-[20px] animate-bounce">moped</span>
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <span className="font-label-sm text-[11px] font-bold text-primary">LIVE TRACKING</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+      {activeOrder && (
+        <section 
+          onClick={() => navigate('/track-order')}
+          className="cursor-pointer p-3 rounded-xl bg-gradient-to-r from-primary-container/20 to-secondary-container/30 border border-primary/20 shadow-sm flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-primary text-on-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px] animate-bounce">moped</span>
             </div>
-            <span className="font-body-sm text-xs text-on-surface font-semibold">
-              Order {activeOrder.orderNumber || activeOrder.id} • Arriving in {activeOrder.etaMinutes} mins
-            </span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="font-label-sm text-[11px] font-bold text-primary">LIVE TRACKING</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+              </div>
+              <span className="font-body-sm text-xs text-on-surface font-semibold">
+                Order {activeOrder.orderNumber || activeOrder.id} • Arriving in {activeOrder.etaMinutes || 30} mins
+              </span>
+            </div>
           </div>
-        </div>
-        <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
-      </section>
+          <span className="material-symbols-outlined text-primary text-[18px]">chevron_right</span>
+        </section>
+      )}
 
       {/* Live Backend Statistics Pill Grid */}
       {dashboardSummary && (

@@ -47,3 +47,16 @@ env/
 *.njsproj
 *.sln
 *.sw?
+.gemini/
+.agent/
+.agents/
+.gsd/
+GSD-STYLE.md
+PROJECT_RULES.md
+VERSION
+adapters/
+model_capabilities.yaml
+/scripts/
+
+
+

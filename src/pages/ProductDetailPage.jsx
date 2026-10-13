@@ -11,6 +11,8 @@ export const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('composition');
   const [product, setProduct] = useState(null);
+  const [availability, setAvailability] = useState(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -65,6 +67,18 @@ export const ProductDetailPage = () => {
             livePharmacyItem: data.livePharmacyItem || null,
             source: data.source || null,
           });
+
+          try {
+            setLoadingAvailability(true);
+            const avail = await api.pharmacies.getAvailability(id);
+            if (isMounted) {
+              setAvailability(avail);
+            }
+          } catch (_) {
+            // Keep availability null on failure
+          } finally {
+            if (isMounted) setLoadingAvailability(false);
+          }
         }
       } catch (err) {
         if (isMounted) {
@@ -267,6 +281,109 @@ export const ProductDetailPage = () => {
             ? `Indexed from the Indian Medicine Dataset containing 11,621 clinical formulations. Registered manufacturer: ${product.manufacturer}.`
             : 'Validated against standard clinical pharmacopeia database. Certified authentic pharmacy formulation.'}
         </p>
+      </div>
+
+      {/* Multi-Pharmacy Availability & Price Comparison */}
+      <div className="p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[20px]">storefront</span>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Nearby Pharmacy Availability</h3>
+          </div>
+          {availability?.availableCount !== undefined && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container-low text-primary border border-primary/20">
+              {availability.availableCount} {availability.availableCount === 1 ? 'Store' : 'Stores'} In Stock
+            </span>
+          )}
+        </div>
+
+        {loadingAvailability ? (
+          <div className="flex items-center justify-center p-4 text-xs text-on-surface-variant gap-2 animate-pulse">
+            <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+            <span>Checking verified local pharmacy stock...</span>
+          </div>
+        ) : availability?.pharmacies && availability.pharmacies.length > 0 ? (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-[11px] text-on-surface-variant">
+              Compare verified inventory and pricing across nearby pharmacies for this formulation:
+            </p>
+            {availability.pharmacies.map((pharmacy) => (
+              <div
+                key={pharmacy.pharmacyId}
+                className="p-3 rounded-xl bg-surface-container-low/60 border border-outline-variant/15 flex flex-col gap-2 transition-all hover:border-primary/30"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-xs text-primary">{pharmacy.pharmacyName}</span>
+                    <span className="text-[10px] text-on-surface-variant line-clamp-1">{pharmacy.address}</span>
+                  </div>
+                  <div className="text-right flex flex-col items-end shrink-0">
+                    <span className="font-bold text-sm text-primary">₹{pharmacy.price}</span>
+                    <span className="text-[10px] text-emerald-700 font-bold">{pharmacy.stock} in stock</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-on-surface-variant pt-1 border-t border-outline-variant/10">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 font-semibold text-primary">
+                      <span className="material-symbols-outlined text-[13px]">near_me</span>
+                      {pharmacy.distanceText}
+                    </span>
+                    {pharmacy.phone && (
+                      <a href={`tel:${pharmacy.phone}`} className="flex items-center gap-1 hover:text-primary">
+                        <span className="material-symbols-outlined text-[13px]">call</span>
+                        {pharmacy.phone}
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pharmacy.pharmacyName + ' ' + pharmacy.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 rounded-lg bg-surface-container text-on-surface-variant hover:text-primary font-bold text-[10px] flex items-center gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">directions</span>
+                      Map
+                    </a>
+                    <button
+                      onClick={() => {
+                        addToCart(
+                          {
+                            ...product,
+                            price: pharmacy.price,
+                            pharmacyId: pharmacy.pharmacyId,
+                            pharmacyName: pharmacy.pharmacyName,
+                          },
+                          quantity
+                        );
+                        openCart();
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-primary text-white hover:bg-primary/90 font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">add_shopping_cart</span>
+                      Select & Order
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 text-center flex flex-col items-center gap-1.5">
+            <span className="material-symbols-outlined text-on-surface-variant text-[24px]">inventory_2</span>
+            <p className="text-xs font-semibold text-on-surface">No verified local stock at nearby pharmacies</p>
+            <p className="text-[11px] text-on-surface-variant max-w-xs">
+              This clinical formulation exists in the 11,621 National Drug Database, but no local pharmacy has listed current inventory.
+            </p>
+            <button
+              onClick={() => navigate('/medicines')}
+              className="mt-1 px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-colors"
+            >
+              Browse Other Formulations
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabbed Product Details */}

@@ -18,8 +18,8 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
       const res = await api.pharmacies.getNearby({ lat, lng, radius: 20 });
       if (res?.pharmacies) {
         setPharmacies(res.pharmacies);
-        if (res.pharmacies.length > 0 && !selectedPharmacy) {
-          setSelectedPharmacy(res.pharmacies[0]);
+        if (res.pharmacies.length > 0) {
+          setSelectedPharmacy((prev) => prev || res.pharmacies[0]);
         }
       }
     } catch (err) {
@@ -27,7 +27,7 @@ export function NearbyPharmacyMap({ onSelectPharmacy, selectedMedicine }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedPharmacy]);
+  }, []);
 
   // Request browser user location
   const requestLocation = useCallback(() => {

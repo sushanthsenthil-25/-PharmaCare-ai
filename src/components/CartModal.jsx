@@ -150,6 +150,11 @@ export const CartModal = () => {
                       <h4 className="font-headline-sm text-xs font-bold text-primary truncate">
                         {item.name}
                       </h4>
+                      {item.pharmacyName && (
+                        <span className="text-[10px] text-emerald-800 font-semibold truncate">
+                          🏪 {item.pharmacyName}
+                        </span>
+                      )}
                       <span className="text-[11px] text-on-surface-variant">
                         ₹{unitPrice} each
                       </span>

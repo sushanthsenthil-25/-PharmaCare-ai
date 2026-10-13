@@ -22,9 +22,10 @@ export const TrackOrderPage = () => {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
 
-  const activeId = activeOrder.orderNumber || activeOrder.id || 'ORD-8942';
+  const activeId = activeOrder?.orderNumber || activeOrder?.id;
 
   const fetchTracking = async (idToQuery) => {
+    if (!idToQuery) return null;
     try {
       const res = await api.orders.getTracking(idToQuery);
       if (res && res.success) {
@@ -36,38 +37,46 @@ export const TrackOrderPage = () => {
         const order = await api.orders.getById(idToQuery);
         if (order) setOrderData(order);
       } catch {
-        // Keep active order
+        // Keep existing
       }
     }
   };
+
+  const orderDataRef = useRef(orderData);
+  useEffect(() => {
+    orderDataRef.current = orderData;
+  }, [orderData]);
 
   useEffect(() => {
     let isMounted = true;
     let pollInterval = null;
 
     const loadData = async () => {
-      setLoading(true);
-      await fetchTracking(activeId);
-      if (isMounted) setLoading(false);
+      if (activeId) {
+        setLoading(true);
+        await fetchTracking(activeId);
+        if (isMounted) setLoading(false);
+      }
     };
 
     loadData();
 
-    // Poll live tracking every 12 seconds
+    // Poll live tracking every 15 seconds without resetting loading spinner
     pollInterval = setInterval(() => {
       if (isMounted) {
-        const currentId = orderData?.orderNumber || orderData?.id || activeId;
-        if (orderData?.status !== 'DELIVERED' && orderData?.status !== 'CANCELLED') {
+        const currentData = orderDataRef.current;
+        const currentId = currentData?.orderNumber || currentData?.id || activeId;
+        if (currentId && currentData?.status !== 'DELIVERED' && currentData?.status !== 'CANCELLED') {
           fetchTracking(currentId);
         }
       }
-    }, 12000);
+    }, 15000);
 
     return () => {
       isMounted = false;
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [activeId, orderData?.id, orderData?.orderNumber, orderData?.status]);
+  }, [activeId]);
 
   const handleSearchOrder = async (e) => {
     e.preventDefault();
@@ -86,14 +95,14 @@ export const TrackOrderPage = () => {
     }
   };
 
-  const currentStatus = orderData?.status || activeOrder.status || 'CONFIRMED';
+  const currentStatus = orderData?.status || activeOrder?.status || 'PENDING_CONFIRMATION';
   const progressIdx = STATUS_PROGRESS[currentStatus] ?? 2;
-  const orderIdDisplay = orderData?.orderNumber || orderData?.orderId || orderData?.id || activeOrder.orderNumber || activeOrder.id;
-  const etaText = orderData?.estimatedDeliveryText || activeOrder.estimatedDeliveryText || 'Today, 30–45 mins';
-  const riderName = orderData?.riderName || orderData?.rider_name || activeOrder.riderName || 'Vikram Singh';
-  const riderPhone = orderData?.riderPhone || orderData?.rider_phone || activeOrder.riderPhone || '+91 98765 43210';
-  const deliveryAddress = orderData?.shippingAddress || orderData?.delivery_address || 'Indiranagar 100ft Rd, Bangalore 560038';
-  const currentLocation = orderData?.currentLocation || 'Live driver location will appear when available.';
+  const orderIdDisplay = orderData?.orderNumber || orderData?.orderId || orderData?.id || activeOrder?.orderNumber || activeOrder?.id;
+  const etaText = orderData?.estimatedDeliveryText || activeOrder?.estimatedDeliveryText || 'Estimated 30–45 mins';
+  const riderName = orderData?.riderName || orderData?.rider_name || activeOrder?.riderName || 'Assigned on Dispatch';
+  const riderPhone = orderData?.riderPhone || orderData?.rider_phone || activeOrder?.riderPhone || null;
+  const deliveryAddress = orderData?.shippingAddress || orderData?.delivery_address || activeOrder?.shippingAddress || 'Indiranagar, Bangalore 560038';
+  const currentLocation = orderData?.currentLocation || activeOrder?.currentLocation || 'Location updates when out for delivery.';
 
   const steps = [
     { title: 'Order Placed & Received', description: 'Order registered in PharmaCare Express', completed: progressIdx >= 1, current: progressIdx === 1 },
@@ -101,7 +110,7 @@ export const TrackOrderPage = () => {
     { title: 'Pharmacy Dispensing & Prepping', description: 'Certified pharmacist preparing items', completed: progressIdx >= 3, current: progressIdx === 3 },
     { title: 'Tamper-Proof Packed & Sealed', description: 'Sealed with clinical barcode tag', completed: progressIdx >= 4, current: progressIdx === 4 },
     { title: 'Out for Delivery (Express Moped)', description: `${riderName} is on the way`, completed: progressIdx >= 5, current: progressIdx === 5 },
-    { title: 'Delivered at Doorstep', description: 'Handed over at Indiranagar delivery point', completed: progressIdx >= 6, current: progressIdx === 6 },
+    { title: 'Delivered at Doorstep', description: 'Handed over at delivery point', completed: progressIdx >= 6, current: progressIdx === 6 },
   ];
 
   const subtotal = orderData?.subtotal ?? activeOrder.subtotal ?? (orderData?.items || activeOrder.items || []).reduce((s, i) => s + (i.price || 0) * (i.qty || 1), 0);
@@ -158,64 +167,86 @@ export const TrackOrderPage = () => {
         </div>
       )}
 
-      {/* Express ETA Hero Banner */}
-      <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <span className="px-2.5 py-0.5 rounded-full bg-surface-container-lowest/30 backdrop-blur-sm font-label-sm text-[10px] font-bold tracking-wider uppercase">
-            30-Min Express Delivery
-          </span>
-          <span className="font-mono text-xs font-bold text-primary">ID: {orderIdDisplay}</span>
-        </div>
-
-        <div className="flex flex-col gap-0.5 my-0.5">
-          <span className="text-[11px] opacity-90 font-medium">Estimated Arrival Window</span>
-          <h2 className="font-headline-lg text-xl font-extrabold tracking-tight">
-            {currentStatus === 'DELIVERED' ? 'Delivered' : etaText}
-          </h2>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-            <span className="text-xs font-bold text-primary">Status: {currentStatus.replace(/_/g, ' ')}</span>
+      {!orderIdDisplay ? (
+        <div className="py-12 px-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 text-center flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center text-primary">
+            <span className="material-symbols-outlined text-[32px]">local_shipping</span>
           </div>
-        </div>
-
-        <div className="w-full bg-surface-container-lowest/30 rounded-full h-1.5 overflow-hidden">
-          <div 
-            className="bg-primary h-full rounded-full transition-all duration-500" 
-            style={{ width: `${Math.min(100, Math.max(16, progressIdx * 16.6))}%` }}
-          ></div>
-        </div>
-      </div>
-
-      {/* Driver Location Info */}
-      <div className="p-3 rounded-xl bg-surface-container-low/40 border border-outline-variant/15 flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
-          <span className="material-symbols-outlined text-[18px]">explore</span>
-        </div>
-        <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-[9px] uppercase font-bold text-on-surface-variant">Live Driver GPS</span>
-          <span className="text-xs font-semibold text-primary truncate">{currentLocation}</span>
-        </div>
-      </div>
-
-      {/* Rider Contact Card */}
-      <div className="p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-[20px]">moped</span>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-primary">No Active Order Selected</h3>
+            <p className="text-xs text-on-surface-variant mt-1 max-w-xs">
+              Enter an order identifier above to view real-time fulfillment status, or browse medicines to place a new order.
+            </p>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-secondary uppercase">Express Delivery Partner</span>
-            <h4 className="font-headline-sm text-xs font-bold text-primary">{riderName}</h4>
-            <span className="text-[11px] text-on-surface-variant truncate max-w-[190px]">To: {deliveryAddress}</span>
-          </div>
+          <button
+            onClick={() => navigate('/medicines')}
+            className="mt-1 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-sm hover:bg-primary/90"
+          >
+            Browse Medicine Catalogue
+          </button>
         </div>
-        <a
-          href={`tel:${riderPhone}`}
-          className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm hover:bg-primary/90 transition-all"
-        >
-          <span className="material-symbols-outlined text-[18px]">call</span>
-        </a>
-      </div>
+      ) : (
+        <>
+          {/* Express ETA Hero Banner */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-container to-secondary-container/80 text-on-primary-container shadow-md flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="px-2.5 py-0.5 rounded-full bg-surface-container-lowest/30 backdrop-blur-sm font-label-sm text-[10px] font-bold tracking-wider uppercase">
+                30-Min Express Delivery
+              </span>
+              <span className="font-mono text-xs font-bold text-primary">ID: {orderIdDisplay}</span>
+            </div>
+
+            <div className="flex flex-col gap-0.5 my-0.5">
+              <span className="text-[11px] opacity-90 font-medium">Estimated Arrival Window</span>
+              <h2 className="font-headline-lg text-xl font-extrabold tracking-tight">
+                {currentStatus === 'DELIVERED' ? 'Delivered' : etaText}
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span className="text-xs font-bold text-primary">Status: {currentStatus.replace(/_/g, ' ')}</span>
+              </div>
+            </div>
+
+            <div className="w-full bg-surface-container-lowest/30 rounded-full h-1.5 overflow-hidden">
+              <div 
+                className="bg-primary h-full rounded-full transition-all duration-500" 
+                style={{ width: `${Math.min(100, Math.max(16, progressIdx * 16.6))}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Driver Location Info */}
+          <div className="p-3 rounded-xl bg-surface-container-low/40 border border-outline-variant/15 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
+              <span className="material-symbols-outlined text-[18px]">explore</span>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] uppercase font-bold text-on-surface-variant">Live Driver GPS</span>
+              <span className="text-xs font-semibold text-primary truncate">{currentLocation}</span>
+            </div>
+          </div>
+
+          {/* Rider Contact Card */}
+          <div className="p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined text-[20px]">moped</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-secondary uppercase">Express Delivery Partner</span>
+                <h4 className="font-headline-sm text-xs font-bold text-primary">{riderName}</h4>
+                <span className="text-[11px] text-on-surface-variant truncate max-w-[190px]">To: {deliveryAddress}</span>
+              </div>
+            </div>
+            {riderPhone && (
+              <a
+                href={`tel:${riderPhone}`}
+                className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm hover:bg-primary/90 transition-all"
+              >
+                <span className="material-symbols-outlined text-[18px]">call</span>
+              </a>
+            )}
+          </div>
 
       {/* Order Progress Timeline */}
       <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/15 shadow-sm flex flex-col gap-3">
@@ -320,7 +351,9 @@ export const TrackOrderPage = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
+  )}
+</div>
   );
 };
 

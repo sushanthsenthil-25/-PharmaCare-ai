@@ -140,7 +140,7 @@ function serializePrice(val) {
 
 function formatCatalogueItem(doc) {
   const comp = Array.isArray(doc.composition) ? doc.composition : (doc.composition ? [String(doc.composition)] : []);
-  const dosageForm = detectDosageForm(doc.name, doc.pack_size_label);
+  const dosageForm = doc.dosage_form || detectDosageForm(doc.name, doc.pack_size_label);
 
   return {
     id: String(doc.source_id || doc._id),
@@ -150,6 +150,7 @@ function formatCatalogueItem(doc) {
     medicineType: doc.medicine_type || 'allopathy',
     packSize: doc.pack_size_label || null,
     dosageForm: dosageForm,
+    dosage_form: dosageForm,
     composition: comp,
     priceINR: serializePrice(doc.price_inr),
     isDiscontinued: Boolean(doc.is_discontinued),
@@ -170,6 +171,7 @@ const PROJECTION = {
   manufacturer_name: 1,
   medicine_type: 1,
   pack_size_label: 1,
+  dosage_form: 1,
   composition: 1,
   price_inr: 1,
   is_discontinued: 1,
@@ -395,11 +397,15 @@ router.get('/', async (req, res) => {
         'Inhaler/Respiratory': '(inhaler|respules|spray)',
         'Powder/Sachet': '(sachet|powder)',
       };
-      if (formRegexMap[dosage_form]) {
+      const regexPart = formRegexMap[dosage_form];
+      if (regexPart) {
         filterQuery.$or = [
-          { name: { $regex: formRegexMap[dosage_form], $options: 'i' } },
-          { pack_size_label: { $regex: formRegexMap[dosage_form], $options: 'i' } },
+          { dosage_form: dosage_form },
+          { name: { $regex: regexPart, $options: 'i' } },
+          { pack_size_label: { $regex: regexPart, $options: 'i' } },
         ];
+      } else {
+        filterQuery.dosage_form = dosage_form;
       }
     }
 

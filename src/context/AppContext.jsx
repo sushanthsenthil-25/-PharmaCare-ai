@@ -14,47 +14,25 @@ export const AppProvider = ({ children }) => {
   const hasToken = !!api.getAccessToken();
 
   const [user, setUser] = useState({
-    id: storedUser?.id || storedUser?._id || 'usr_default',
-    _id: storedUser?._id || storedUser?.id || 'usr_default',
-    name: storedUser?.name || storedUser?.full_name || 'Rahul',
-    email: storedUser?.email || 'owner@pharmacare.ai',
-    role: storedUser?.role || 'OWNER',
-    businessName: storedUser?.businessName || storedUser?.business_name || 'PharmaCare Central',
-    isLoggedIn: hasToken,
+    id: storedUser?.id || storedUser?._id || null,
+    _id: storedUser?._id || storedUser?.id || null,
+    name: storedUser?.name || storedUser?.full_name || '',
+    email: storedUser?.email || '',
+    role: storedUser?.role || 'USER',
+    businessName: storedUser?.businessName || storedUser?.business_name || '',
+    isLoggedIn: Boolean(storedUser && hasToken),
     avatar: storedUser?.profilePhoto || storedUser?.avatar || DEFAULT_AVATAR,
     profilePhoto: storedUser?.profilePhoto || storedUser?.avatar || DEFAULT_AVATAR,
   });
 
-  const [cart, setCart] = useState([
-    { id: 'm1', name: 'Amoxicillin Trihydrate 500mg', price: 145, qty: 1, type: 'Rx' },
-    { id: 'h1', name: 'Optima Multivitamin AI Gold', price: 399, qty: 1, type: 'OTC' }
-  ]);
-
+  const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartSummary, setCartSummary] = useState(null);
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
 
-  const [activeOrder, setActiveOrder] = useState({
-    id: 'ORD-8942',
-    orderNumber: 'ORD-8942',
-    status: 'CONFIRMED',
-    estimatedDeliveryText: 'Today, 30–45 mins',
-    currentLocation: 'Live driver location will appear when available.',
-    etaMinutes: 30,
-    riderName: 'Vikram Singh',
-    riderPhone: '+91 98765 43210',
-    totalAmount: 544,
-    subtotal: 544,
-    deliveryFee: 0,
-    discount: 0,
-    items: [
-      { name: 'Amoxicillin Trihydrate 500mg', qty: 1, price: 145 },
-      { name: 'Optima Multivitamin AI Gold', qty: 1, price: 399 }
-    ],
-    trackingEvents: []
-  });
+  const [activeOrder, setActiveOrder] = useState(null);
 
   const [alerts, setAlerts] = useState([]);
   const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
@@ -309,18 +287,19 @@ export const AppProvider = ({ children }) => {
   const logout = () => {
     api.auth.logout();
     setUser({
-      id: 'usr_guest',
-      _id: 'usr_guest',
-      name: 'Guest User',
+      id: null,
+      _id: null,
+      name: '',
       email: '',
       role: 'USER',
-      businessName: 'PharmaCare Central',
+      businessName: '',
       isLoggedIn: false,
       avatar: DEFAULT_AVATAR,
       profilePhoto: DEFAULT_AVATAR,
     });
     setCart([]);
     setCartSummary(null);
+    setActiveOrder(null);
   };
 
   const uploadProfilePhoto = async (dataUrl) => {

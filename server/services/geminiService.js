@@ -7,6 +7,8 @@ import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import {
   searchMedicinesRanked,
+  searchCatalogueMedicines,
+  searchUnifiedCatalogue,
   extractMedicineName,
   normalizeQuery,
   formatMedicine,
@@ -327,7 +329,7 @@ export class GeminiService {
    * Search MongoDB Catalog using ranked relevance search
    */
   async searchCatalog(query) {
-    return await searchMedicinesRanked(query);
+    return await searchUnifiedCatalogue(query, { limit: 10 });
   }
 
   /**
