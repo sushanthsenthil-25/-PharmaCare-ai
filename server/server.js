@@ -6,11 +6,11 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
 import mongoose from 'mongoose';
-import { connectDB, closeDB } from './config/db.js';
+import { connectDB, closeDB, isDbConnected } from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
-// Configure Mongoose buffer timeout for serverless environment
-mongoose.set('bufferTimeoutMS', 8000);
+// Fail fast instead of letting requests sit in Mongoose's operation buffer.
+mongoose.set('bufferCommands', false);
 
 // Route imports
 import authRoutes from './routes/authRoutes.js';
@@ -29,8 +29,26 @@ import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
 
-// Initialise database connection once at startup
-connectDB();
+// Connection is established lazily per invocation and cached across warm Vercel invocations.
+// Never rely on an un-awaited startup connection in serverless functions.
+const requireDatabase = async (req, res, next) => {
+  try {
+    const connection = await connectDB();
+    if (!connection || !isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'DATABASE_DISCONNECTED', message: 'Database is temporarily unavailable. Please try again shortly.' },
+      });
+    }
+    return next();
+  } catch (error) {
+    console.error(`[Database middleware] ${error.name || 'Error'}: ${error.message}`);
+    return res.status(503).json({
+      success: false,
+      error: { code: 'DATABASE_DISCONNECTED', message: 'Database is temporarily unavailable. Please try again shortly.' },
+    });
+  }
+};
 
 const app = express();
 
@@ -158,10 +176,10 @@ app.get('/api/health/ai', (req, res) => {
 });
 
 // Mount Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/medicines', medicineRoutes);
+app.use('/api/auth', (req, res, next) => {\n  if (req.path === '/login' || req.path === '/register') return next();\n  return requireDatabase(req, res, next);\n}, authRoutes);
+app.use('/api/medicines', requireDatabase, medicineRoutes);
 app.use('/api/health-products', healthProductRoutes);
-app.use('/api/personal-care', personalCareRoutes);
+app.use('/api/personal-care', requireDatabase, personalCareRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/ai', aiRoutes);
@@ -266,12 +284,12 @@ app.get('/api/alerts', async (req, res) => {
 });
 
 // Legacy / Alternative route support for frontend compatibility
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/products', medicineRoutes);
+app.use('/api/v1/auth', requireDatabase, authRoutes);
+app.use('/api/v1/products', requireDatabase, medicineRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/ai', aiRoutes);
-app.use('/api/v1/medicine-catalogue', medicineCatalogueRoutes);
-app.use('/api/medicine-catalogue', medicineCatalogueRoutes);
+app.use('/api/v1/medicine-catalogue', requireDatabase, medicineCatalogueRoutes);
+app.use('/api/medicine-catalogue', requireDatabase, medicineCatalogueRoutes);
 app.get('/api/v1/dashboard/summary', (req, res) => res.redirect('/api/dashboard/summary'));
 app.get('/api/v1/alerts', (req, res) => res.redirect('/api/alerts'));
 
