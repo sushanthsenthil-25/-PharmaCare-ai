@@ -40,7 +40,15 @@ export const Header = () => {
           <div className="flex items-center justify-between gap-2">
             <div 
               className="flex items-center gap-1.5 cursor-pointer group"
-              onClick={() => navigate('/')}
+              onClick={() => {
+                if (user?.role === 'OWNER' || user?.role === 'PHARMACIST') {
+                  navigate('/owner/dashboard');
+                } else if (user?.isLoggedIn) {
+                  navigate('/dashboard');
+                } else {
+                  navigate('/login');
+                }
+              }}
             >
               <Logo size={32} variant="horizontal" />
             </div>

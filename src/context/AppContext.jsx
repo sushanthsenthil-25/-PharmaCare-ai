@@ -218,11 +218,11 @@ export const AppProvider = ({ children }) => {
   // ---------------------------------------------------------------------------
   // Authentication Actions
   // ---------------------------------------------------------------------------
-  const login = async (email, password) => {
+  const login = async (email, password, expectedRole) => {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const res = await api.auth.login({ email, password });
+      const res = await api.auth.login({ email, password, expectedRole });
       const profile = res.user;
       const photo = profile.profilePhoto || profile.avatar || DEFAULT_AVATAR;
       setUser({
@@ -244,7 +244,7 @@ export const AppProvider = ({ children }) => {
         loadDashboardSummary(),
         loadActiveOrder(),
       ]);
-      return { success: true };
+      return { success: true, user: profile };
     } catch (err) {
       const msg = err.message || 'Login failed. Please check your credentials.';
       setAuthError(msg);

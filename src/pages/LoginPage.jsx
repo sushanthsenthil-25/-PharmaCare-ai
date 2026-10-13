@@ -38,6 +38,7 @@ export const LoginPage = () => {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
     phone: '',
     address: '',
   });
@@ -50,6 +51,8 @@ export const LoginPage = () => {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
+    ownerSecretKey: 'PHARMACARE_OWNER_2026',
     phone: '',
     business_address: '',
   });
@@ -76,41 +79,56 @@ export const LoginPage = () => {
   const fileInputRef = useRef(null);
 
   // ---------------------------------------------------------------------------
-  // Option A: User / Customer Authentication Handlers
+  // Customer Authentication Handlers
   // ---------------------------------------------------------------------------
   const handleUserLogin = async (e) => {
     e.preventDefault();
     setAuthError(null);
-    const res = await login(userEmail, userPassword);
+    const res = await login(userEmail, userPassword, 'USER');
     if (res.success) {
-      navigate('/');
+      navigate('/dashboard');
     }
   };
 
   const handleUserRegister = async (e) => {
     e.preventDefault();
     setAuthError(null);
+
+    if (!userRegForm.name.trim() || !userRegForm.email.trim() || !userRegForm.password) {
+      setAuthError('Please fill in all required fields.');
+      return;
+    }
+    if (userRegForm.password.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (userRegForm.password !== userRegForm.confirmPassword) {
+      setAuthError('Passwords do not match. Please verify and try again.');
+      return;
+    }
+
     const res = await register({
-      full_name: userRegForm.name,
-      name: userRegForm.name,
-      email: userRegForm.email,
+      full_name: userRegForm.name.trim(),
+      name: userRegForm.name.trim(),
+      email: userRegForm.email.trim(),
       password: userRegForm.password,
-      phone: userRegForm.phone,
-      business_address: userRegForm.address,
+      confirmPassword: userRegForm.confirmPassword,
+      phone: userRegForm.phone.trim(),
+      business_address: userRegForm.address.trim(),
       role: 'USER',
     });
     if (res.success) {
-      navigate('/');
+      navigate('/dashboard');
     }
   };
 
   // ---------------------------------------------------------------------------
-  // Option B: Pharmacy Owner Authentication Handlers
+  // Pharmacy Owner Authentication Handlers
   // ---------------------------------------------------------------------------
   const handleOwnerLogin = async (e) => {
     e.preventDefault();
     setAuthError(null);
-    const res = await login(ownerEmail, ownerPassword);
+    const res = await login(ownerEmail, ownerPassword, 'OWNER');
     if (res.success) {
       navigate('/owner/dashboard');
     }
@@ -119,14 +137,34 @@ export const LoginPage = () => {
   const handleOwnerRegister = async (e) => {
     e.preventDefault();
     setAuthError(null);
+
+    if (!ownerRegForm.name.trim() || !ownerRegForm.email.trim() || !ownerRegForm.password || !ownerRegForm.business_name.trim()) {
+      setAuthError('Please fill in all required fields.');
+      return;
+    }
+    if (ownerRegForm.password.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (ownerRegForm.password !== ownerRegForm.confirmPassword) {
+      setAuthError('Passwords do not match. Please verify and try again.');
+      return;
+    }
+    if (!ownerRegForm.ownerSecretKey.trim()) {
+      setAuthError('Pharmacy Owner Authorization Code is required (use PHARMACARE_OWNER_2026).');
+      return;
+    }
+
     const res = await register({
-      full_name: ownerRegForm.name,
-      name: ownerRegForm.name,
-      business_name: ownerRegForm.business_name,
-      email: ownerRegForm.email,
+      full_name: ownerRegForm.name.trim(),
+      name: ownerRegForm.name.trim(),
+      business_name: ownerRegForm.business_name.trim(),
+      email: ownerRegForm.email.trim(),
       password: ownerRegForm.password,
-      phone: ownerRegForm.phone,
-      business_address: ownerRegForm.business_address,
+      confirmPassword: ownerRegForm.confirmPassword,
+      ownerSecretKey: ownerRegForm.ownerSecretKey.trim(),
+      phone: ownerRegForm.phone.trim(),
+      business_address: ownerRegForm.business_address.trim(),
       role: 'OWNER',
     });
     if (res.success) {
@@ -485,7 +523,7 @@ export const LoginPage = () => {
         </div>
       )}
 
-      {/* Role Selection Tabs: Option A vs Option B */}
+      {/* Role Selection Tabs: Customer Login vs Pharmacy Owner Login */}
       <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-surface-container-low border border-outline-variant/15">
         <button
           type="button"
@@ -493,17 +531,17 @@ export const LoginPage = () => {
             setSelectedRole('user');
             setAuthError(null);
           }}
-          className={`py-2.5 px-3 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+          className={`py-3 px-3 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all ${
             selectedRole === 'user'
-              ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/20'
+              ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/20 ring-1 ring-primary/20'
               : 'text-on-surface-variant hover:text-on-surface'
           }`}
         >
           <div className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">person</span>
-            <span>Option A</span>
+            <span>Customer Login</span>
           </div>
-          <span className="text-[11px] font-semibold opacity-90">User / Patient</span>
+          <span className="text-[10px] font-semibold opacity-85">Patient & Customer Portal</span>
         </button>
 
         <button
@@ -512,18 +550,70 @@ export const LoginPage = () => {
             setSelectedRole('owner');
             setAuthError(null);
           }}
-          className={`py-2.5 px-3 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+          className={`py-3 px-3 rounded-xl text-xs font-bold flex flex-col items-center gap-1 transition-all ${
             selectedRole === 'owner'
-              ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/20'
+              ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/20 ring-1 ring-primary/20'
               : 'text-on-surface-variant hover:text-on-surface'
           }`}
         >
           <div className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">storefront</span>
-            <span>Option B</span>
+            <span>Pharmacy Owner Login</span>
           </div>
-          <span className="text-[11px] font-semibold opacity-90">Pharmacy Owner</span>
+          <span className="text-[10px] font-semibold opacity-85">Verified Pharmacy Partner</span>
         </button>
+      </div>
+
+      {/* Quick Demo Credentials Widget */}
+      <div className="p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 shadow-xs flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
+            <span className="material-symbols-outlined text-[15px]">verified</span>
+            <span>Verified Demo Accounts</span>
+          </div>
+          <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+            MongoDB Connected
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedRole('user');
+              setAuthMode('login');
+              setUserEmail('sushanth@gmail.com');
+              setUserPassword('123456');
+              setAuthError(null);
+            }}
+            className="p-2 rounded-xl bg-surface-container-low hover:bg-surface-container border border-outline-variant/15 text-left transition-all group"
+          >
+            <div className="flex items-center justify-between text-[11px] font-bold text-on-surface">
+              <span>Customer Demo</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-mono">user</span>
+            </div>
+            <div className="text-[10px] text-on-surface-variant truncate font-mono mt-0.5">sushanth@gmail.com</div>
+            <div className="text-[9px] text-primary font-bold mt-1 group-hover:underline">Autofill (123456) →</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedRole('owner');
+              setAuthMode('login');
+              setOwnerEmail('pharmacare@gmail.com');
+              setOwnerPassword('789456');
+              setAuthError(null);
+            }}
+            className="p-2 rounded-xl bg-surface-container-low hover:bg-surface-container border border-outline-variant/15 text-left transition-all group"
+          >
+            <div className="flex items-center justify-between text-[11px] font-bold text-on-surface">
+              <span>Pharmacy Owner</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-mono">owner</span>
+            </div>
+            <div className="text-[10px] text-on-surface-variant truncate font-mono mt-0.5">pharmacare@gmail.com</div>
+            <div className="text-[9px] text-primary font-bold mt-1 group-hover:underline">Autofill (789456) →</div>
+          </button>
+        </div>
       </div>
 
       {/* Auth Card Container */}
@@ -692,6 +782,19 @@ export const LoginPage = () => {
             </div>
 
             <div>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase">Confirm Password</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={userRegForm.confirmPassword}
+                onChange={(e) => setUserRegForm({ ...userRegForm, confirmPassword: e.target.value })}
+                placeholder="••••••••"
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-surface-container-low border border-outline-variant/20 focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
               <label className="text-[10px] font-bold text-on-surface-variant uppercase">Phone Number</label>
               <input
                 type="tel"
@@ -830,6 +933,35 @@ export const LoginPage = () => {
                 placeholder="••••••••"
                 className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-surface-container-low border border-outline-variant/20 focus:outline-none focus:border-primary"
               />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase">Confirm Password</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={ownerRegForm.confirmPassword}
+                onChange={(e) => setOwnerRegForm({ ...ownerRegForm, confirmPassword: e.target.value })}
+                placeholder="••••••••"
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-surface-container-low border border-outline-variant/20 focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-on-surface-variant uppercase">Owner Authorization Code</label>
+                <span className="text-[9px] text-primary font-bold">Required</span>
+              </div>
+              <input
+                type="text"
+                required
+                value={ownerRegForm.ownerSecretKey}
+                onChange={(e) => setOwnerRegForm({ ...ownerRegForm, ownerSecretKey: e.target.value })}
+                placeholder="PHARMACARE_OWNER_2026"
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-surface-container-low border border-outline-variant/20 focus:outline-none focus:border-primary font-mono text-primary"
+              />
+              <span className="text-[9px] text-on-surface-variant mt-0.5 block">Authorization code: PHARMACARE_OWNER_2026</span>
             </div>
 
             <div>

@@ -1,17 +1,27 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 
 export const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useApp();
 
-  const navItems = [
-    { label: 'Home', path: '/', icon: 'home' },
-    { label: 'Medicines', path: '/medicines', icon: 'medication' },
-    { label: 'Personal Care', path: '/personal-care', icon: 'spa' },
-    { label: 'Track Order', path: '/track-order', icon: 'local_shipping' },
-    { label: 'Account', path: '/login', icon: 'person' },
-  ];
+  const isOwner = user?.isLoggedIn && (user?.role === 'OWNER' || user?.role === 'PHARMACIST');
+
+  const navItems = isOwner
+    ? [
+        { label: 'Dashboard', path: '/owner/dashboard', icon: 'dashboard' },
+        { label: 'Inventory', path: '/medicines', icon: 'medication' },
+        { label: 'Account', path: '/login', icon: 'person' },
+      ]
+    : [
+        { label: 'Home', path: user?.isLoggedIn ? '/dashboard' : '/', icon: 'home' },
+        { label: 'Medicines', path: '/medicines', icon: 'medication' },
+        { label: 'Personal Care', path: '/personal-care', icon: 'spa' },
+        { label: 'Track Order', path: '/track-order', icon: 'local_shipping' },
+        { label: 'Account', path: '/login', icon: 'person' },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface-container-lowest/95 backdrop-blur-md border-t border-outline-variant/20 max-w-md mx-auto">

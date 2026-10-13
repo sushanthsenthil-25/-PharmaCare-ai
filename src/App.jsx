@@ -53,11 +53,18 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (!user?.isLoggedIn) {
-    return <Navigate to="/login?role=owner" replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role?.toUpperCase())) {
-    return <Navigate to="/" replace />;
+  const role = (user?.role || 'USER').toUpperCase();
+  const normalizedAllowed = (allowedRoles || []).map((r) => r.toUpperCase());
+
+  if (normalizedAllowed.length > 0 && !normalizedAllowed.includes(role)) {
+    // Prevent customer from accessing owner pages, and owner from being treated as customer
+    if (role === 'OWNER' || role === 'PHARMACIST' || role === 'ADMIN') {
+      return <Navigate to="/owner/dashboard" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -77,7 +84,14 @@ export function App() {
               <ErrorBoundary>
                 <Routes>
                   <Route path="/" element={<RootRoute />} />
-                  <Route path="/dashboard" element={<HomePage />} />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute allowedRoles={['USER']}>
+                        <HomePage />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/medicines" element={<MedicinesPage />} />
                   <Route path="/health" element={<HealthProductsPage />} />

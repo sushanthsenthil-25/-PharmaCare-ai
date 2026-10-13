@@ -234,8 +234,12 @@ class ApiClient {
 
   // 2. Authentication & User Profile
   auth = {
-    login: async ({ email, password }) => {
-      const res = await this.post('/api/auth/login', { email, password });
+    login: async ({ email, password, expectedRole, role }) => {
+      const res = await this.post('/api/auth/login', {
+        email,
+        password,
+        expectedRole: expectedRole || role,
+      });
       this.setTokens(res.token || res.access_token);
       this.setUser(res.user);
       return res;

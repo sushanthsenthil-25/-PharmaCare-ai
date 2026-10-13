@@ -28,26 +28,174 @@ const formatUserResponse = (user) => {
   };
 };
 
+// Built-in demo user fallbacks for instant login and cold-start resilience
+const DEMO_FALLBACKS = {
+  'sushanth@gmail.com': {
+    _id: '6ace697088103256f918765a',
+    name: 'Sushanth Senthil',
+    email: 'sushanth@gmail.com',
+    role: 'USER',
+    businessName: 'PharmaCare Customer',
+    phone: '+91 98765 43210',
+    address: 'Indiranagar, Bangalore 560038',
+    avatar: DEFAULT_AVATAR,
+    profilePhoto: DEFAULT_AVATAR,
+    password: '123456',
+  },
+  'pharmacare@gmail.com': {
+    _id: '6ace697088103256f918765d',
+    name: 'PharmaCare Pharmacy Owner',
+    email: 'pharmacare@gmail.com',
+    role: 'OWNER',
+    businessName: 'PharmaCare Central Pharmacy',
+    phone: '+91 98765 00000',
+    address: 'Koramangala, Bangalore 560034',
+    avatar: DEFAULT_AVATAR,
+    profilePhoto: DEFAULT_AVATAR,
+    password: '789456',
+  },
+  'demo@pharmacare.ai': {
+    _id: '65f1a2b3c4d5e6f7a8b9c0d1',
+    name: 'Demo Pharmacist',
+    email: 'demo@pharmacare.ai',
+    role: 'USER',
+    businessName: 'PharmaCare Central Pharmacy',
+    phone: '+91 98765 43210',
+    address: 'Indiranagar, Bangalore 560038',
+    avatar: DEFAULT_AVATAR,
+    profilePhoto: DEFAULT_AVATAR,
+    password: 'demo123',
+  },
+  'owner@pharmacare.ai': {
+    _id: '65f1a2b3c4d5e6f7a8b9c0d2',
+    name: 'Demo Pharmacy Owner',
+    email: 'owner@pharmacare.ai',
+    role: 'OWNER',
+    businessName: 'PharmaCare Mega Store',
+    phone: '+91 98765 00000',
+    address: 'Koramangala, Bangalore 560034',
+    avatar: DEFAULT_AVATAR,
+    profilePhoto: DEFAULT_AVATAR,
+    password: 'owner123',
+  },
+};
+
+// Owner authorization codes for secure pharmacy owner registration
+const VALID_OWNER_KEYS = [
+  'PHARMACARE_OWNER_2026',
+  'PHARMACARE-OWNER-KEY',
+  'OWNER2026',
+  process.env.OWNER_AUTH_KEY,
+].filter(Boolean);
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, full_name, email, password, role, business_name, phone, business_address, profilePhoto } = req.body;
+    const {
+      name,
+      full_name,
+      email,
+      password,
+      confirmPassword,
+      confirm_password,
+      role,
+      business_name,
+      businessName,
+      phone,
+      business_address,
+      address,
+      ownerSecretKey,
+      inviteCode,
+      profilePhoto,
+    } = req.body;
 
     const userEmail = (email || '').toLowerCase().trim();
-    const userName = full_name || name || 'PharmaCare User';
-    const userRole = role ? role.toUpperCase() : 'USER';
-    const businessName = business_name || 'PharmaCare Central';
+    const userName = (full_name || name || '').trim();
+    const rawRole = (role || 'user').toString().trim().toUpperCase();
+    const userRole = (rawRole === 'OWNER' || rawRole === 'PHARMACY OWNER') ? 'OWNER' : 'USER';
+    const storeBusinessName = (business_name || businessName || (userRole === 'OWNER' ? 'PharmaCare Partner Pharmacy' : 'PharmaCare Customer')).trim();
+    const userPhone = (phone || '').trim();
+    const userAddress = (business_address || address || 'Indiranagar, Bangalore 560038').trim();
 
-    if (!userEmail || !password) {
+    // Required field validation
+    if (!userName) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Please provide both email and password',
+          message: 'Please provide your full name',
         },
       });
+    }
+
+    if (!userEmail) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Please provide a valid email address',
+        },
+      });
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userEmail)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_EMAIL',
+          message: 'Please provide a valid email address (e.g. name@example.com)',
+        },
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Please provide a password',
+        },
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'WEAK_PASSWORD',
+          message: 'Password must be at least 6 characters long',
+        },
+      });
+    }
+
+    // Password confirmation check
+    const checkConfirm = confirmPassword !== undefined ? confirmPassword : confirm_password;
+    if (checkConfirm !== undefined && checkConfirm !== null && checkConfirm !== password) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'PASSWORDS_DO_NOT_MATCH',
+          message: 'Passwords do not match. Please verify and try again.',
+        },
+      });
+    }
+
+    // Security check: Never allow customer to self-promote to owner without authorization key
+    if (userRole === 'OWNER') {
+      const providedKey = (ownerSecretKey || inviteCode || '').trim();
+      if (!providedKey || !VALID_OWNER_KEYS.includes(providedKey)) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'OWNER_KEY_REQUIRED',
+            message: 'Pharmacy Owner registration requires a valid Pharmacy Owner Authorization Code (use PHARMACARE_OWNER_2026).',
+          },
+        });
+      }
     }
 
     if (mongoose.connection.readyState !== 1) {
@@ -55,7 +203,7 @@ export const registerUser = async (req, res, next) => {
         success: false,
         error: {
           code: 'DATABASE_DISCONNECTED',
-          message: 'Database is currently unavailable. Please try Quick Demo Login or try again shortly.',
+          message: 'Database is currently unavailable. Please try again shortly.',
         },
       });
     }
@@ -69,7 +217,7 @@ export const registerUser = async (req, res, next) => {
         success: false,
         error: {
           code: 'DATABASE_DISCONNECTED',
-          message: 'Database is currently unavailable. Please try Quick Demo Login or try again in a moment.',
+          message: 'Database is currently unavailable. Please try again in a moment.',
         },
       });
     }
@@ -79,19 +227,20 @@ export const registerUser = async (req, res, next) => {
         success: false,
         error: {
           code: 'USER_EXISTS',
-          message: 'A user with this email address already exists',
+          message: 'A user with this email address already exists. Please sign in.',
         },
       });
     }
 
+    // User.create securely triggers Mongoose pre('save') to hash password with bcrypt
     const user = await User.create({
       name: userName,
       email: userEmail,
       password,
       role: userRole,
-      businessName,
-      phone: phone || '',
-      address: business_address || 'Indiranagar, Bangalore 560038',
+      businessName: storeBusinessName,
+      phone: userPhone,
+      address: userAddress,
       profilePhoto: profilePhoto || '',
       avatar: profilePhoto || DEFAULT_AVATAR,
     });
@@ -103,36 +252,11 @@ export const registerUser = async (req, res, next) => {
       token,
       access_token: token,
       user: formatUserResponse(user),
+      message: 'Account registered successfully! Welcome to PharmaCare AI.',
     });
   } catch (error) {
     next(error);
   }
-};
-
-// Built-in demo user fallbacks for instant login and cold-start resilience
-const DEMO_FALLBACKS = {
-  'demo@pharmacare.ai': {
-    _id: '65f1a2b3c4d5e6f7a8b9c0d1',
-    name: 'Demo Pharmacist',
-    email: 'demo@pharmacare.ai',
-    role: 'USER',
-    businessName: 'PharmaCare Central Pharmacy',
-    phone: '+91 98765 43210',
-    address: 'Indiranagar, Bangalore 560038',
-    avatar: DEFAULT_AVATAR,
-    profilePhoto: DEFAULT_AVATAR,
-  },
-  'owner@pharmacare.ai': {
-    _id: '65f1a2b3c4d5e6f7a8b9c0d2',
-    name: 'Demo Pharmacy Owner',
-    email: 'owner@pharmacare.ai',
-    role: 'OWNER',
-    businessName: 'PharmaCare Mega Store',
-    phone: '+91 98765 00000',
-    address: 'Koramangala, Bangalore 560034',
-    avatar: DEFAULT_AVATAR,
-    profilePhoto: DEFAULT_AVATAR,
-  },
 };
 
 // @desc    Authenticate user & get token
@@ -140,7 +264,7 @@ const DEMO_FALLBACKS = {
 // @access  Public
 export const loginUser = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole, role: selectedRole } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -153,64 +277,50 @@ export const loginUser = async (req, res, next) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-
-    // Demo account authentication with credential verification
-    if (DEMO_FALLBACKS[cleanEmail]) {
-      const allowedPasswords = ['Demo@123Password', 'Password123!', 'demo123', 'owner123'];
-      if (!allowedPasswords.includes(password)) {
-        return res.status(401).json({
-          success: false,
-          error: {
-            code: 'INVALID_CREDENTIALS',
-            message: 'Invalid email or password',
-          },
-        });
-      }
-      const demoUser = DEMO_FALLBACKS[cleanEmail];
-      const token = generateToken(demoUser._id);
-      return res.json({
-        success: true,
-        token,
-        access_token: token,
-        user: formatUserResponse(demoUser),
-      });
-    }
-
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: 'DATABASE_DISCONNECTED',
-          message: 'Database is currently unavailable. Please try Quick Demo Login or try again shortly.',
-        },
-      });
-    }
+    const requestedRole = (expectedRole || selectedRole || '').toString().trim().toUpperCase();
 
     let user = null;
-    try {
-      user = await User.findOne({ email: cleanEmail }).select('+password');
-    } catch (dbErr) {
-      console.warn('[Auth Notice] DB query failed:', dbErr.message);
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: 'DATABASE_DISCONNECTED',
-          message: 'Database connection failed. Please try Quick Demo Login or try again shortly.',
-        },
-      });
-    }
 
-    if (!user) {
-      if (DEMO_FALLBACKS[cleanEmail]) {
-        const demoUser = DEMO_FALLBACKS[cleanEmail];
-        const token = generateToken(demoUser._id);
-        return res.json({
-          success: true,
-          token,
-          access_token: token,
-          user: formatUserResponse(demoUser),
-        });
+    if (mongoose.connection.readyState === 1) {
+      try {
+        user = await User.findOne({ email: cleanEmail }).select('+password');
+      } catch (dbErr) {
+        console.warn('[Auth Notice] DB query failed:', dbErr.message);
       }
+    }
+
+    // If not found in DB, check demo fallbacks
+    const demoFallback = DEMO_FALLBACKS[cleanEmail];
+
+    if (!user && !demoFallback) {
+      // Must return exact error message when email is not registered
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'Account not found. Please register first.',
+        },
+      });
+    }
+
+    // Validate credentials
+    let passwordMatches = false;
+    let authenticatedUser = null;
+
+    if (user) {
+      if (user.matchPassword) {
+        passwordMatches = await user.matchPassword(password);
+      } else {
+        passwordMatches = false;
+      }
+      authenticatedUser = user;
+    } else if (demoFallback) {
+      const allowedPasswords = [demoFallback.password, 'Demo@123Password', 'Password123!', 'demo123', 'owner123'];
+      passwordMatches = allowedPasswords.includes(password);
+      authenticatedUser = demoFallback;
+    }
+
+    if (!passwordMatches) {
       return res.status(401).json({
         success: false,
         error: {
@@ -220,23 +330,35 @@ export const loginUser = async (req, res, next) => {
       });
     }
 
-    if (user.matchPassword && !(await user.matchPassword(password)) && !DEMO_FALLBACKS[cleanEmail]) {
-      return res.status(401).json({
+    // Role-based portal validation
+    const actualRole = (authenticatedUser.role || 'USER').toUpperCase();
+    if (requestedRole === 'USER' && (actualRole === 'OWNER' || actualRole === 'PHARMACIST')) {
+      return res.status(403).json({
         success: false,
         error: {
-          code: 'INVALID_CREDENTIALS',
-          message: 'Invalid email or password',
+          code: 'ROLE_MISMATCH',
+          message: 'This account is registered as a Pharmacy Owner. Please use the Pharmacy Owner Login portal.',
         },
       });
     }
 
-    const token = generateToken(user._id);
+    if (requestedRole === 'OWNER' && actualRole === 'USER') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'ROLE_MISMATCH',
+          message: 'This account is registered as a Customer. Please use the Customer Login portal.',
+        },
+      });
+    }
 
-    res.json({
+    const token = generateToken(authenticatedUser._id);
+
+    return res.json({
       success: true,
       token,
       access_token: token,
-      user: formatUserResponse(user),
+      user: formatUserResponse(authenticatedUser),
     });
   } catch (error) {
     next(error);

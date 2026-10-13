@@ -23,13 +23,16 @@ import conversationRoutes from './routes/conversationRoutes.js';
 import pharmacyRoutes from './routes/pharmacyRoutes.js';
 import ownerRoutes from './routes/ownerRoutes.js';
 import medicineCatalogueRoutes from './routes/medicineCatalogueRoutes.js';
+import { seedDemoUsers } from './scripts/seed_demo_users.js';
 
 // Models for dashboard / alerts compatibility
 import Medicine from './models/Medicine.js';
 import Order from './models/Order.js';
 
-// Non-blocking initial database connection attempt
-connectDB().catch(() => {});
+// Non-blocking initial database connection attempt and demo user seed
+connectDB()
+  .then(() => seedDemoUsers())
+  .catch(() => {});
 
 // Middleware to await database connection and ensure availability for DB-dependent routes
 export const requireDb = async (req, res, next) => {
